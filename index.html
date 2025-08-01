@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แดชบอร์ดจัดการสต็อกสินค้า (Firestore)</title>
+    <title>แดชบอร์ดจัดการสต็อกสินค้า (GitHub Version)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -59,6 +59,19 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 10000;
+            max-width: 90%;
+            text-align: center;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -67,6 +80,12 @@
     <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner"></div>
         <p class="mt-4 text-lg text-stone-600">กำลังเชื่อมต่อฐานข้อมูล...</p>
+    </div>
+
+    <!-- Message Box for alerts -->
+    <div id="message-box" class="hidden message-box">
+        <div id="message-content" class="text-stone-700 text-lg mb-4"></div>
+        <button id="message-close-btn" class="bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">ตกลง</button>
     </div>
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -315,11 +334,11 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, addDoc, onSnapshot, collection, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Provided Firebase configuration
-        const providedFirebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyBUdZ610v2mCfFw3_5DS74ewH7rfkoPQUE",
             authDomain: "my-stock-supply.firebaseapp.com",
             projectId: "my-stock-supply",
@@ -328,17 +347,27 @@
             appId: "1:1095379518419:web:917074e53d49cb3a8d6526",
             measurementId: "G-VGG8RHYBKF"
         };
-
-        // Use the environment variable if available, otherwise use the provided config
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : providedFirebaseConfig;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // App ID derived from the projectId
+        const appId = firebaseConfig.projectId;
 
         // Firebase Initialization and Authentication
         let auth, db, userId;
         let itemMasterData = [];
         let transactionsData = [];
         let isAuthReady = false;
+
+        // Function to show a custom message box
+        const showMessage = (message) => {
+            const messageBox = document.getElementById('message-box');
+            document.getElementById('message-content').textContent = message;
+            messageBox.classList.remove('hidden');
+        };
+
+        // Handles message box close button click
+        document.getElementById('message-close-btn').addEventListener('click', () => {
+            document.getElementById('message-box').classList.add('hidden');
+        });
 
         // Wait for the window to load before initializing the app
         window.onload = async function() {
@@ -348,20 +377,18 @@
                     auth = getAuth(app);
                     db = getFirestore(app);
 
-                    // Sign in with the provided token or anonymously
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    // Sign in anonymously
+                    await signInAnonymously(auth);
 
                     // Set up a listener for authentication state changes
                     onAuthStateChanged(auth, async (user) => {
+                        // This block will run every time the auth state changes
+                        // It will run once after sign-in
                         if (user) {
                             userId = user.uid;
                             document.getElementById('user-id').textContent = userId;
                             isAuthReady = true;
-                            console.log("Firebase initialized and user authenticated.");
+                            console.log("Firebase initialized and user authenticated anonymously with UID:", userId);
                             
                             // Once authenticated, remove the loading overlay
                             document.getElementById('loading-overlay').classList.add('hidden');
@@ -370,13 +397,15 @@
                             setupFirestoreListeners();
                             setupEventListeners();
                         } else {
-                            console.log("No user is signed in.");
+                            console.log("No user is signed in. The app might not function correctly.");
+                            document.getElementById('loading-overlay').classList.add('hidden');
+                            showMessage('ไม่สามารถเข้าสู่ระบบฐานข้อมูลได้ โปรดตรวจสอบการตั้งค่า Firebase');
                         }
                     });
                 } else {
                     console.error("Firebase config is missing. Data persistence will not work.");
                     document.getElementById('loading-overlay').classList.add('hidden');
-                    alert('Firebase config is missing. Data persistence will not work. Using local data for demonstration.');
+                    showMessage('Firebase config is missing. Data persistence will not work. Using local data for demonstration.');
                     // Fallback to local data if Firebase is not configured
                     itemMasterData = [
                         { id: 'PROD-001', name: 'สมุดบันทึก A5', unit: 'เล่ม', minStock: 100 },
@@ -401,6 +430,7 @@
             } catch (error) {
                 console.error("Error during Firebase initialization or sign-in:", error);
                 document.getElementById('loading-overlay').classList.add('hidden');
+                showMessage(`เกิดข้อผิดพลาดในการเชื่อมต่อ Firebase: ${error.message}`);
             }
         };
 
@@ -692,7 +722,7 @@
             });
         };
         
-        // NEW FUNCTION: Populates the IV number dropdown in the Issue form
+        // Populates the IV number dropdown in the Issue form
         const populateIssueIVSelect = (itemId) => {
             const ivSelect = document.getElementById('issue-iv-number');
             ivSelect.innerHTML = '<option value="">-- เลือกเลขที่ IV --</option>';
@@ -730,8 +760,7 @@
             const minStock = parseInt(form.min_stock.value, 10);
 
             if (findItemByName(itemName)) {
-                // Use custom modal or alert, but alert() is fine for a quick example
-                alert('มีสินค้านี้ในระบบอยู่แล้ว');
+                showMessage('มีสินค้านี้ในระบบอยู่แล้ว');
                 return;
             }
             
@@ -743,10 +772,10 @@
                     minStock: minStock
                 });
                 form.reset();
-                alert('เพิ่มสินค้าใหม่เรียบร้อยแล้ว');
+                showMessage('เพิ่มสินค้าใหม่เรียบร้อยแล้ว');
             } catch (e) {
                 console.error("Error adding document: ", e);
-                alert('เกิดข้อผิดพลาดในการเพิ่มสินค้า');
+                showMessage('เกิดข้อผิดพลาดในการเพิ่มสินค้า');
             }
         };
 
@@ -761,7 +790,7 @@
         
             const item = findItemById(itemId);
             if (!item) {
-                alert('กรุณาเลือกสินค้าที่ถูกต้อง');
+                showMessage('กรุณาเลือกสินค้าที่ถูกต้อง');
                 return;
             }
         
@@ -776,10 +805,10 @@
                     iv: ivNumber
                 });
                 form.reset();
-                alert('บันทึกรายการรับเข้าเรียบร้อยแล้ว');
+                showMessage('บันทึกรายการรับเข้าเรียบร้อยแล้ว');
             } catch (e) {
                 console.error("Error adding document: ", e);
-                alert('เกิดข้อผิดพลาดในการบันทึกรายการรับเข้า');
+                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการรับเข้า');
             }
         };
 
@@ -793,7 +822,7 @@
 
             const item = findItemById(itemId);
             if (!item) {
-                alert('กรุณาเลือกสินค้าที่ถูกต้อง');
+                showMessage('กรุณาเลือกสินค้าที่ถูกต้อง');
                 return;
             }
 
@@ -803,7 +832,7 @@
                 .reduce((sum, t) => sum + t.quantity, 0);
 
             if (ivStock < quantity) {
-                alert(`สินค้าไม่เพียงพอใน IV ${ivNumber}! มีในสต็อกเพียง ${ivStock} ${item.unit}`);
+                showMessage(`สินค้าไม่เพียงพอใน IV ${ivNumber}! มีในสต็อกเพียง ${ivStock} ${item.unit}`);
                 return;
             }
 
@@ -817,17 +846,17 @@
                     iv: ivNumber
                 });
                 form.reset();
-                alert('บันทึกรายการจ่ายออกเรียบร้อยแล้ว');
+                showMessage('บันทึกรายการจ่ายออกเรียบร้อยแล้ว');
             } catch (e) {
                 console.error("Error adding document: ", e);
-                alert('เกิดข้อผิดพลาดในการบันทึกรายการจ่ายออก');
+                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการจ่ายออก');
             }
         };
         
         // Handles CSV file upload (This part is not connected to Firestore yet)
         const handleCsvUpload = (type, file) => {
             // ... (CSV upload logic is not updated to use Firestore due to complexity)
-            alert('ฟังก์ชันอัปโหลด CSV ยังไม่รองรับการทำงานกับฐานข้อมูล Firestore');
+            showMessage('ฟังก์ชันอัปโหลด CSV ยังไม่รองรับการทำงานกับฐานข้อมูล Firestore');
         };
 
         // Exports data to a CSV file (This part needs to be updated to use current data from Firestore)
@@ -870,7 +899,6 @@
                     tab.classList.add('active');
                     contents.forEach(content => content.classList.add('hidden'));
                     document.getElementById(`${tab.dataset.tab}-view`).classList.remove('hidden');
-                    // No need to call renderStockBalanceTable() here, as the Firestore listener will handle it.
                 });
             });
             
@@ -928,7 +956,7 @@
                             console.log("Min stock updated in Firestore.");
                         } catch (e) {
                             console.error("Error updating document:", e);
-                            alert('เกิดข้อผิดพลาดในการอัปเดตสต็อกขั้นต่ำ');
+                            showMessage('เกิดข้อผิดพลาดในการอัปเดตสต็อกขั้นต่ำ');
                         }
                     }
                 }
