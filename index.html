@@ -505,8 +505,11 @@
                 stockBalanceData[itemId] = 0;
                 ivStockData[itemId] = {};
             }
+            
+            // FIX: Sort transactions by timestamp before processing
+            const sortedTransactions = [...transactionsData].sort((a, b) => a.timestamp - b.timestamp);
 
-            transactionsData.forEach(transaction => {
+            sortedTransactions.forEach(transaction => {
                 if (stockBalanceData[transaction.itemId] !== undefined) {
                     if (transaction.type === 'receive') {
                         stockBalanceData[transaction.itemId] += transaction.quantity;
@@ -517,6 +520,8 @@
                         }
                     } else if (transaction.type === 'issue') {
                         stockBalanceData[transaction.itemId] -= transaction.quantity;
+                        // The issue transaction logic is correct assuming the IV exists
+                        // The bug was the unsorted data causing it to not exist yet
                         if (ivStockData[transaction.itemId][transaction.iv_number]) {
                             ivStockData[transaction.itemId][transaction.iv_number] -= transaction.quantity;
                         }
@@ -524,6 +529,7 @@
                 }
             });
             renderStockBalanceTable();
+            renderStockByIVReport(); // FIX: Ensure this is called to update the report view
         }
 
         function calculateDashboardStats() {
