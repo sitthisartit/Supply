@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แดชบอร์ดจัดการสต็อกสินค้า (GitHub Version)</title>
+    <title>แดชบอร์ดจัดการสต็อกสินค้า</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -317,7 +320,8 @@
                                 <tr>
                                     <th class="p-3 font-semibold text-stone-600">ชื่อสินค้า</th>
                                     <th class="p-3 font-semibold text-stone-600">หน่วยนับ</th>
-                                    <th class="p-3 font-semibold text-stone-600">สต็อกขั้นต่ำ</th>
+                                    <th class="p-3 font-semibold text-stone-600 text-right">สต็อกขั้นต่ำ</th>
+                                    <th class="p-3 font-semibold text-stone-600 text-center">แก้ไข/ลบ</th>
                                 </tr>
                             </thead>
                             <tbody id="item-master-table">
@@ -327,658 +331,743 @@
                     </div>
                 </div>
             </section>
-
         </main>
     </div>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, addDoc, onSnapshot, collection, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Provided Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyBUdZ610v2mCfFw3_5DS74ewH7rfkoPQUE",
-            authDomain: "my-stock-supply.firebaseapp.com",
-            projectId: "my-stock-supply",
-            storageBucket: "my-stock-supply.firebasestorage.app",
-            messagingSenderId: "1095379518419",
-            appId: "1:1095379518419:web:917074e53d49cb3a8d6526",
-            measurementId: "G-VGG8RHYBKF"
-        };
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // App ID derived from the projectId
-        const appId = firebaseConfig.projectId;
+        // ** Global Variables provided by the Canvas environment **
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyA61Zok6QZeerwXDM6cFv9tBb1Y8SHmpl0",
+            authDomain: "my-stock-supply-3518a.firebaseapp.com",
+            projectId: "my-stock-supply-3518a",
+            storageBucket: "my-stock-supply-3518a.firebasestorage.app",
+            messagingSenderId: "328343672729",
+            appId: "1:328343672729:web:61aaf8976b5b52b094e508"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Firebase Initialization and Authentication
-        let auth, db, userId;
-        let itemMasterData = [];
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // State variables
+        let userId;
+        let itemMasterData = {};
         let transactionsData = [];
-        let isAuthReady = false;
+        let stockBalanceData = {};
+        let ivStockData = {};
+        
+        // UI Elements
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const messageBox = document.getElementById('message-box');
+        const messageContent = document.getElementById('message-content');
+        const messageCloseBtn = document.getElementById('message-close-btn');
 
-        // Function to show a custom message box
-        const showMessage = (message) => {
-            const messageBox = document.getElementById('message-box');
-            document.getElementById('message-content').textContent = message;
-            messageBox.classList.remove('hidden');
+        // Chart instances
+        let topProductsChart;
+        let movementTypeChart;
+
+        // Sorting state
+        let currentSortDirection = {
+            name: 'asc',
+            qty: 'none'
         };
 
-        // Handles message box close button click
-        document.getElementById('message-close-btn').addEventListener('click', () => {
-            document.getElementById('message-box').classList.add('hidden');
+        // --- Utility Functions ---
+        function showMessage(message, type = 'info') {
+            messageContent.textContent = message;
+            messageBox.classList.remove('hidden');
+            // Can add different styling based on type later
+        }
+
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        function showLoading() {
+            loadingOverlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.add('hidden');
+        }
+
+        function csvToArray(text) {
+            const result = [];
+            const rows = text.split('\n');
+            if (rows.length > 0) {
+                const headers = rows[0].split(',').map(h => h.trim());
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i].split(',').map(d => d.trim());
+                    if (row.length === headers.length) {
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index];
+                        });
+                        result.push(obj);
+                    }
+                }
+            }
+            return result;
+        }
+
+        function arrayToCsv(data) {
+            if (!data || data.length === 0) return '';
+            const headers = Object.keys(data[0]);
+            const csvRows = [
+                headers.join(','),
+                ...data.map(row => headers.map(header => {
+                    const value = row[header];
+                    // Handle values that might contain commas or quotes
+                    const formattedValue = (typeof value === 'string' && (value.includes(',') || value.includes('"'))) ? `"${value.replace(/"/g, '""')}"` : value;
+                    return formattedValue;
+                }).join(','))
+            ];
+            return csvRows.join('\n');
+        }
+
+
+        // --- Firebase Initialization and Listeners ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        userId = auth.currentUser.uid;
+                    } else {
+                        await signInAnonymously(auth);
+                        userId = auth.currentUser.uid;
+                    }
+                } catch (error) {
+                    console.error("Firebase Auth Error:", error);
+                    showMessage('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์ผู้ใช้', 'error');
+                }
+            }
+            if (userId) {
+                document.getElementById('user-id').textContent = userId;
+                initializeListeners();
+            }
         });
 
-        // Wait for the window to load before initializing the app
-        window.onload = async function() {
-            try {
-                if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
-                    const app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
+        function initializeListeners() {
+            showLoading();
 
-                    // Sign in anonymously
-                    await signInAnonymously(auth);
-
-                    // Set up a listener for authentication state changes
-                    onAuthStateChanged(auth, async (user) => {
-                        // This block will run every time the auth state changes
-                        // It will run once after sign-in
-                        if (user) {
-                            userId = user.uid;
-                            document.getElementById('user-id').textContent = userId;
-                            isAuthReady = true;
-                            console.log("Firebase initialized and user authenticated anonymously with UID:", userId);
-                            
-                            // Once authenticated, remove the loading overlay
-                            document.getElementById('loading-overlay').classList.add('hidden');
-                            
-                            // Set up Firestore listeners
-                            setupFirestoreListeners();
-                            setupEventListeners();
-                        } else {
-                            console.log("No user is signed in. The app might not function correctly.");
-                            document.getElementById('loading-overlay').classList.add('hidden');
-                            showMessage('ไม่สามารถเข้าสู่ระบบฐานข้อมูลได้ โปรดตรวจสอบการตั้งค่า Firebase');
-                        }
-                    });
-                } else {
-                    console.error("Firebase config is missing. Data persistence will not work.");
-                    document.getElementById('loading-overlay').classList.add('hidden');
-                    showMessage('Firebase config is missing. Data persistence will not work. Using local data for demonstration.');
-                    // Fallback to local data if Firebase is not configured
-                    itemMasterData = [
-                        { id: 'PROD-001', name: 'สมุดบันทึก A5', unit: 'เล่ม', minStock: 100 },
-                        { id: 'PROD-002', name: 'ปากกาลูกลื่นสีน้ำเงิน', unit: 'ด้าม', minStock: 200 },
-                        { id: 'PROD-003', name: 'กระดาษ A4 80 แกรม', unit: 'รีม', minStock: 100 },
-                        { id: 'PROD-004', name: 'เทปกาวใส', unit: 'ม้วน', minStock: 50 },
-                        { id: 'PROD-005', name: 'แฟ้มเอกสารพลาสติก', unit: 'อัน', minStock: 100 }
-                    ];
-                    transactionsData = [
-                        { date: '2024-07-29', type: 'receive', itemId: 'PROD-001', quantity: 500, po: 'PO-001', iv: 'IV-001' },
-                        { date: '2024-07-29', type: 'receive', itemId: 'PROD-002', quantity: 1200, po: 'PO-001', iv: 'IV-001' },
-                        { date: '2024-07-29', type: 'receive', itemId: 'PROD-003', quantity: 200, po: 'PO-002', iv: 'IV-002' },
-                        { date: '2024-07-29', type: 'issue', itemId: 'PROD-001', quantity: -50, iv: 'IV-001' },
-                        { date: '2024-07-29', type: 'issue', itemId: 'PROD-004', quantity: -20, iv: 'IV-004' },
-                        { date: '2024-07-30', type: 'issue', itemId: 'PROD-005', quantity: -10, iv: 'IV-005' },
-                        { date: '2024-07-30', type: 'receive', itemId: 'PROD-003', quantity: 100, po: 'PO-003', iv: 'IV-006' },
-                        { date: '2024-07-31', type: 'issue', itemId: 'PROD-002', quantity: -10, iv: 'IV-001' }
-                    ];
-                    updateAllUI();
-                    setupEventListeners();
-                }
-            } catch (error) {
-                console.error("Error during Firebase initialization or sign-in:", error);
-                document.getElementById('loading-overlay').classList.add('hidden');
-                showMessage(`เกิดข้อผิดพลาดในการเชื่อมต่อ Firebase: ${error.message}`);
-            }
-        };
-
-        // Firestore Listeners
-        const setupFirestoreListeners = () => {
-            if (!isAuthReady) return;
-
-            // Real-time listener for itemMaster collection
-            const itemMasterPath = `artifacts/${appId}/public/data/itemMaster`;
-            const itemMasterRef = collection(db, itemMasterPath);
-            onSnapshot(itemMasterRef, (snapshot) => {
-                itemMasterData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log("Item Master data updated from Firestore.");
-                updateAllUI();
+            // Item Master Listener
+            onSnapshot(collection(db, `artifacts/${appId}/public/data/itemMaster`), (snapshot) => {
+                itemMasterData = {};
+                snapshot.forEach((doc) => {
+                    itemMasterData[doc.id] = doc.data();
+                });
+                renderDropdowns();
+                renderItemMasterTable();
+                renderStockBalanceTable();
+                calculateDashboardStats();
+                hideLoading();
             }, (error) => {
                 console.error("Error fetching itemMaster data:", error);
+                showMessage('เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า', 'error');
+                hideLoading();
             });
 
-            // Real-time listener for transactions collection
-            const transactionsPath = `artifacts/${appId}/public/data/transactions`;
-            const transactionsRef = collection(db, transactionsPath);
-            onSnapshot(transactionsRef, (snapshot) => {
-                transactionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Sort by date descending
-                transactionsData.sort((a, b) => new Date(b.date) - new Date(a.date));
-                console.log("Transactions data updated from Firestore.");
-                updateAllUI();
+            // Transactions Listener
+            onSnapshot(collection(db, `artifacts/${appId}/public/data/transactions`), (snapshot) => {
+                transactionsData = [];
+                snapshot.forEach((doc) => {
+                    transactionsData.push({ id: doc.id, ...doc.data() });
+                });
+                calculateStockBalance();
+                renderReceiveHistoryTable();
+                renderIssueHistoryTable();
+                calculateDashboardStats();
+                
+                // ** FIX: Explicitly call the report renderer here to update the view **
+                renderStockByIVReport();
             }, (error) => {
                 console.error("Error fetching transactions data:", error);
+                showMessage('เกิดข้อผิดพลาดในการโหลดประวัติการทำรายการ', 'error');
             });
-        };
+        }
+        
+        // --- Data Calculation Functions ---
+        function calculateStockBalance() {
+            stockBalanceData = {};
+            ivStockData = {};
 
-        let topProductsChart = null;
-        let movementTypeChart = null;
-        let currentReceivePage = 1;
-        let currentIssuePage = 1;
-        const itemsPerPage = 10;
-        let currentSortDirection = { name: 'asc', qty: 'asc' };
+            for (const itemId in itemMasterData) {
+                stockBalanceData[itemId] = 0;
+                ivStockData[itemId] = {};
+            }
 
-        // Helper function to find item by ID
-        const findItemById = (id) => {
-            return itemMasterData.find(item => item.id === id);
-        };
-
-        // Helper function to find item by name
-        const findItemByName = (name) => {
-            return itemMasterData.find(item => item.name.toLowerCase().trim() === name.toLowerCase().trim());
-        };
-
-        // Calculates the current stock for a given item ID
-        const calculateCurrentStock = (itemId) => {
-            return transactionsData
-                .filter(t => t.itemId === itemId)
-                .reduce((sum, t) => sum + t.quantity, 0);
-        };
-
-        // Updates all UI components on data change
-        const updateAllUI = () => {
-            updateKeyMetrics();
-            renderCharts();
+            transactionsData.forEach(transaction => {
+                if (stockBalanceData[transaction.itemId] !== undefined) {
+                    if (transaction.type === 'receive') {
+                        stockBalanceData[transaction.itemId] += transaction.quantity;
+                        if (ivStockData[transaction.itemId][transaction.iv_number]) {
+                            ivStockData[transaction.itemId][transaction.iv_number] += transaction.quantity;
+                        } else {
+                            ivStockData[transaction.itemId][transaction.iv_number] = transaction.quantity;
+                        }
+                    } else if (transaction.type === 'issue') {
+                        stockBalanceData[transaction.itemId] -= transaction.quantity;
+                        if (ivStockData[transaction.itemId][transaction.iv_number]) {
+                            ivStockData[transaction.itemId][transaction.iv_number] -= transaction.quantity;
+                        }
+                    }
+                }
+            });
             renderStockBalanceTable();
-            renderMovementHistoryTable('receive', transactionsData.filter(t => t.type === 'receive'));
-            renderMovementHistoryTable('issue', transactionsData.filter(t => t.type === 'issue'));
-            renderItemMasterTable();
-            populateAllItemSelects();
-        };
+        }
 
-        // Updates the key metrics on the dashboard
-        const updateKeyMetrics = () => {
-            document.getElementById('total-products').textContent = itemMasterData.length;
-            const totalStock = itemMasterData.reduce((sum, item) => sum + calculateCurrentStock(item.id), 0);
-            document.getElementById('total-stock-quantity').textContent = totalStock.toLocaleString();
-            document.getElementById('total-receives').textContent = transactionsData.filter(t => t.type === 'receive').length;
-            document.getElementById('total-issues').textContent = transactionsData.filter(t => t.type === 'issue').length;
-        };
+        function calculateDashboardStats() {
+            // Update dashboard summary cards
+            const totalProducts = Object.keys(itemMasterData).length;
+            const totalStockQuantity = Object.values(stockBalanceData).reduce((sum, qty) => sum + qty, 0);
+            const totalReceives = transactionsData.filter(t => t.type === 'receive').length;
+            const totalIssues = transactionsData.filter(t => t.type === 'issue').length;
 
-        // Renders the charts on the dashboard
-        const renderCharts = () => {
-            const stockSummary = itemMasterData.map(item => ({
-                name: item.name,
-                quantity: calculateCurrentStock(item.id)
-            })).sort((a, b) => b.quantity - a.quantity);
-            const top5Products = stockSummary.slice(0, 5);
-            const topProductsCtx = document.getElementById('top-products-chart').getContext('2d');
-            if (topProductsChart) topProductsChart.destroy();
-            topProductsChart = new Chart(topProductsCtx, {
-                type: 'bar',
-                data: {
-                    labels: top5Products.map(p => p.name),
-                    datasets: [{
-                        label: 'จำนวนคงเหลือ',
-                        data: top5Products.map(p => p.quantity),
-                        backgroundColor: '#A855F7',
-                        borderColor: '#7E22CE',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { grid: { color: '#E7E5E4' } }, y: { grid: { display: false } } }
+            document.getElementById('total-products').textContent = totalProducts;
+            document.getElementById('total-stock-quantity').textContent = totalStockQuantity;
+            document.getElementById('total-receives').textContent = totalReceives;
+            document.getElementById('total-issues').textContent = totalIssues;
+            
+            // Update charts
+            renderTopProductsChart();
+            renderMovementTypeChart();
+        }
+
+        // --- Render Functions ---
+        function renderDropdowns() {
+            const itemSelects = document.querySelectorAll('.item-select-dropdown');
+            itemSelects.forEach(select => {
+                const currentSelection = select.value;
+                select.innerHTML = '<option value="">-- เลือกชื่อสินค้า --</option>';
+                for (const itemId in itemMasterData) {
+                    const item = itemMasterData[itemId];
+                    const option = document.createElement('option');
+                    option.value = itemId;
+                    option.textContent = item.name;
+                    select.appendChild(option);
+                }
+                // Restore previous selection if it still exists
+                if (currentSelection && itemMasterData[currentSelection]) {
+                    select.value = currentSelection;
                 }
             });
-
-            const movementCounts = transactionsData.reduce((acc, item) => {
-                acc[item.type] = (acc[item.type] || 0) + 1;
-                return acc;
-            }, {});
-            const movementTypeCtx = document.getElementById('movement-type-chart').getContext('2d');
-            if (movementTypeChart) movementTypeChart.destroy();
-            movementTypeChart = new Chart(movementTypeCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['รับเข้า', 'เบิกจ่าย'],
-                    datasets: [{
-                        data: [movementCounts['receive'] || 0, movementCounts['issue'] || 0],
-                        backgroundColor: ['#16A34A', '#DC2626'],
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom' } }
-                }
-            });
-        };
-
-        // Renders the main stock balance table
-        const renderStockBalanceTable = (filterTerm = '') => {
-            const tableBody = document.getElementById('stock-balance-table');
+        }
+        
+        function renderItemMasterTable() {
+            const tableBody = document.getElementById('item-master-table');
             tableBody.innerHTML = '';
-            let filteredData = itemMasterData.filter(item => item.name.toLowerCase().includes(filterTerm.toLowerCase()));
-
-            // Apply sorting
-            if (currentSortDirection.name !== 'none') {
-                filteredData = filteredData.sort((a, b) => {
-                    const nameA = a.name.toLowerCase();
-                    const nameB = b.name.toLowerCase();
-                    if (nameA < nameB) return currentSortDirection.name === 'asc' ? -1 : 1;
-                    if (nameA > nameB) return currentSortDirection.name === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }
-            if (currentSortDirection.qty !== 'none') {
-                filteredData = filteredData.sort((a, b) => {
-                    const qtyA = calculateCurrentStock(a.id);
-                    const qtyB = calculateCurrentStock(b.id);
-                    return currentSortDirection.qty === 'asc' ? qtyA - qtyB : qtyB - qtyA;
-                });
-            }
-
-            if (filteredData.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-stone-500">ไม่พบข้อมูลสินค้า</td></tr>';
-                return;
-            }
-            filteredData.forEach(item => {
-                const currentStock = calculateCurrentStock(item.id);
-                const statusText = currentStock < item.minStock ? 'ต้องเติม' : 'ปกติ';
-                const statusClass = currentStock < item.minStock ? 'text-red-600 bg-red-100' : 'text-green-600 bg-green-100';
+            for (const itemId in itemMasterData) {
+                const item = itemMasterData[itemId];
                 const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
+                row.className = 'border-b border-stone-200 hover:bg-stone-50 transition-colors duration-300';
                 row.innerHTML = `
-                    <td class="p-3 font-medium text-stone-800">${item.name}</td>
-                    <td class="p-3 text-stone-700 text-right font-semibold">${currentStock.toLocaleString()}</td>
-                    <td class="p-3 text-right">
-                        <input type="number" value="${item.minStock}" class="w-20 text-right bg-transparent border-none focus:bg-white focus:ring-1 focus:ring-purple-400 rounded-lg p-1" data-item-id="${item.id}">
+                    <td class="p-3 text-stone-700">${item.name}</td>
+                    <td class="p-3 text-stone-700">${item.unit}</td>
+                    <td class="p-3 text-stone-700 text-right">
+                        <input type="number" data-item-id="${itemId}" value="${item.min_stock}" class="w-20 p-1 border border-stone-300 rounded-md text-right min-stock-input">
                     </td>
                     <td class="p-3 text-center">
-                        <span class="px-3 py-1 text-xs font-medium rounded-full ${statusClass}">${statusText}</span>
+                        <button class="text-red-500 hover:text-red-700 transition-colors duration-300 delete-item-btn" data-item-id="${itemId}"><i class="fas fa-trash-alt"></i></button>
                     </td>
                 `;
                 tableBody.appendChild(row);
-            });
-        };
+            }
+        }
 
-        // Renders the movement history tables with pagination
-        const renderMovementHistoryTable = (type, data) => {
-            const tableBody = document.getElementById(`${type}-history-table`);
-            const paginationContainer = document.getElementById(`${type}-pagination`);
+        function renderStockBalanceTable() {
+            const tableBody = document.getElementById('stock-balance-table');
             tableBody.innerHTML = '';
-            paginationContainer.innerHTML = '';
-            const totalPages = Math.ceil(data.length / itemsPerPage);
-            const currentPage = type === 'receive' ? currentReceivePage : currentIssuePage;
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const paginatedData = data.slice(startIndex, endIndex);
-
-            if (paginatedData.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="${type === 'receive' ? 5 : 4}" class="text-center p-4 text-stone-500">ไม่พบประวัติการ${type === 'receive' ? 'รับเข้า' : 'จ่ายออก'}</td></tr>`;
-                return;
+            
+            let sortedItems = Object.keys(stockBalanceData).map(itemId => ({
+                id: itemId,
+                name: itemMasterData[itemId]?.name,
+                unit: itemMasterData[itemId]?.unit,
+                qty: stockBalanceData[itemId],
+                minStock: itemMasterData[itemId]?.min_stock
+            })).filter(item => item.name); // Filter out items not in itemMasterData anymore
+            
+            const searchTerm = document.getElementById('stock-search').value.toLowerCase();
+            if (searchTerm) {
+                sortedItems = sortedItems.filter(item => item.name.toLowerCase().includes(searchTerm));
             }
 
-            paginatedData.forEach(item => {
+            if (currentSortDirection.name === 'asc') {
+                sortedItems.sort((a, b) => a.name.localeCompare(b.name));
+            } else if (currentSortDirection.name === 'desc') {
+                sortedItems.sort((a, b) => b.name.localeCompare(a.name));
+            } else if (currentSortDirection.qty === 'asc') {
+                sortedItems.sort((a, b) => a.qty - b.qty);
+            } else if (currentSortDirection.qty === 'desc') {
+                sortedItems.sort((a, b) => b.qty - a.qty);
+            }
+            
+            sortedItems.forEach(item => {
+                const isLow = item.qty < item.minStock;
+                const statusIcon = isLow ? '<i class="fas fa-exclamation-triangle text-red-500"></i>' : '<i class="fas fa-check-circle text-green-500"></i>';
                 const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                const itemName = findItemById(item.itemId)?.name || 'Unknown Item';
+                row.className = isLow ? 'bg-red-50 border-b border-stone-200' : 'border-b border-stone-200';
+
                 row.innerHTML = `
-                    <td class="p-3 text-stone-700">${item.date}</td>
-                    <td class="p-3 font-medium text-stone-800">${itemName}</td>
-                    <td class="p-3 text-stone-700 text-right">${Math.abs(item.quantity).toLocaleString()}</td>
-                    <td class="p-3 text-stone-700">${type === 'receive' ? item.po || 'N/A' : item.iv || 'N/A'}</td>
-                    ${type === 'receive' ? `<td class="p-3 text-stone-700">${item.iv || 'N/A'}</td>` : ''}
+                    <td class="p-3 text-stone-700">${item.name}</td>
+                    <td class="p-3 text-stone-700 text-right">${item.qty} ${item.unit}</td>
+                    <td class="p-3 text-stone-700 text-right">
+                        <input type="number" data-item-id="${item.id}" value="${item.minStock}" class="w-20 p-1 border border-stone-300 rounded-md text-right min-stock-input">
+                    </td>
+                    <td class="p-3 text-center">${statusIcon}</td>
                 `;
                 tableBody.appendChild(row);
             });
+        }
+        
+        function renderReceiveHistoryTable() {
+            const tableBody = document.getElementById('receive-history-table');
+            tableBody.innerHTML = '';
+            
+            const receives = transactionsData.filter(t => t.type === 'receive').sort((a, b) => b.timestamp - a.timestamp);
+            
+            receives.forEach(transaction => {
+                const item = itemMasterData[transaction.itemId];
+                if (!item) return;
+                const row = document.createElement('tr');
+                row.className = 'border-b border-stone-200 hover:bg-stone-50';
+                row.innerHTML = `
+                    <td class="p-3 text-stone-700">${new Date(transaction.timestamp).toLocaleString('th-TH', { hour12: false })}</td>
+                    <td class="p-3 text-stone-700">${item.name}</td>
+                    <td class="p-3 text-stone-700 text-right">${transaction.quantity} ${item.unit}</td>
+                    <td class="p-3 text-stone-700">${transaction.po_number || '-'}</td>
+                    <td class="p-3 text-stone-700">${transaction.iv_number}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
 
-            for (let i = 1; i <= totalPages; i++) {
-                const button = document.createElement('button');
-                button.textContent = i;
-                button.className = `px-3 py-1 rounded-lg ${i === currentPage ? 'bg-purple-600 text-white' : 'bg-stone-200 hover:bg-stone-300'}`;
-                button.addEventListener('click', () => {
-                    if (type === 'receive') {
-                        currentReceivePage = i;
-                    } else {
-                        currentIssuePage = i;
-                    }
-                    renderMovementHistoryTable(type, data);
-                });
-                paginationContainer.appendChild(button);
-            }
-        };
+        function renderIssueHistoryTable() {
+            const tableBody = document.getElementById('issue-history-table');
+            tableBody.innerHTML = '';
+            
+            const issues = transactionsData.filter(t => t.type === 'issue').sort((a, b) => b.timestamp - a.timestamp);
+            
+            issues.forEach(transaction => {
+                const item = itemMasterData[transaction.itemId];
+                if (!item) return;
+                const row = document.createElement('tr');
+                row.className = 'border-b border-stone-200 hover:bg-stone-50';
+                row.innerHTML = `
+                    <td class="p-3 text-stone-700">${new Date(transaction.timestamp).toLocaleString('th-TH', { hour12: false })}</td>
+                    <td class="p-3 text-stone-700">${item.name}</td>
+                    <td class="p-3 text-stone-700 text-right">${transaction.quantity} ${item.unit}</td>
+                    <td class="p-3 text-stone-700">${transaction.iv_number}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
 
-        // Renders the stock by IV report table
-        const renderStockByIVReport = (itemId) => {
+        function renderStockByIVReport() {
             const tableBody = document.getElementById('stock-by-iv-table');
+            const itemId = document.getElementById('stock-by-iv-item-id').value;
             tableBody.innerHTML = '';
 
             if (!itemId) {
                 tableBody.innerHTML = `<tr id="stock-by-iv-placeholder"><td colspan="2" class="text-center p-4 text-stone-500">กรุณาเลือกชื่อสินค้าเพื่อดูรายงาน</td></tr>`;
                 return;
             }
-            
-            const relevantTransactions = transactionsData.filter(t => t.itemId === itemId && t.iv);
-            if (relevantTransactions.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-stone-500">ไม่พบข้อมูลการเคลื่อนไหวสำหรับสินค้าและเลขที่ IV นี้</td></tr>`;
-                return;
-            }
 
-            const stockByIV = relevantTransactions.reduce((acc, t) => {
-                if (!acc[t.iv]) {
-                    acc[t.iv] = 0;
-                }
-                acc[t.iv] += t.quantity;
-                return acc;
-            }, {});
-
-            for (const iv in stockByIV) {
-                const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                row.innerHTML = `
-                    <td class="p-3 text-stone-700">${iv}</td>
-                    <td class="p-3 text-stone-700">${stockByIV[iv]}</td>
-                `;
-                tableBody.appendChild(row);
-            }
-        };
-        
-        // Renders the Item Master table
-        const renderItemMasterTable = () => {
-            const tableBody = document.getElementById('item-master-table');
-            tableBody.innerHTML = '';
-            itemMasterData.forEach(item => {
-                const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                row.innerHTML = `
-                    <td class="p-3 font-medium text-stone-800">${item.name}</td>
-                    <td class="p-3 text-stone-700">${item.unit}</td>
-                    <td class="p-3 text-stone-700">${item.minStock}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        };
-
-        // Populates all select dropdowns with item master data
-        const populateAllItemSelects = () => {
-            const selects = document.querySelectorAll('.item-select-dropdown');
-            selects.forEach(selectElement => {
-                // Clear existing options, except the first placeholder
-                selectElement.innerHTML = '<option value="">-- เลือกชื่อสินค้า --</option>';
-                itemMasterData.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.id;
-                    option.textContent = item.name;
-                    selectElement.appendChild(option);
-                });
-            });
-        };
-        
-        // Populates the IV number dropdown in the Issue form
-        const populateIssueIVSelect = (itemId) => {
-            const ivSelect = document.getElementById('issue-iv-number');
-            ivSelect.innerHTML = '<option value="">-- เลือกเลขที่ IV --</option>';
-
-            if (!itemId) {
-                return;
-            }
-
-            // Calculate stock per IV for the selected item
-            const ivStock = transactionsData
-                .filter(t => t.itemId === itemId && t.iv)
-                .reduce((acc, t) => {
-                    acc[t.iv] = (acc[t.iv] || 0) + t.quantity;
-                    return acc;
-                }, {});
-
-            // Add options to the dropdown for IVs with a positive stock balance
-            for (const iv in ivStock) {
-                const remainingStock = ivStock[iv];
-                if (remainingStock > 0) {
-                    const option = document.createElement('option');
-                    option.value = iv;
-                    option.textContent = `${iv} (คงเหลือ: ${remainingStock})`;
-                    ivSelect.appendChild(option);
+            if (ivStockData[itemId]) {
+                const item = itemMasterData[itemId];
+                for (const ivNumber in ivStockData[itemId]) {
+                    const quantity = ivStockData[itemId][ivNumber];
+                    if (quantity > 0) {
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-stone-200 hover:bg-stone-50';
+                        row.innerHTML = `
+                            <td class="p-3 text-stone-700">${ivNumber}</td>
+                            <td class="p-3 text-stone-700 text-right">${quantity} ${item.unit}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    }
                 }
             }
-        };
+        }
 
-        // Handles form submission for adding a new item
-        const handleAddItemFormSubmit = async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const itemName = form.item_name.value.trim();
-            const itemUnit = form.item_unit.value.trim();
-            const minStock = parseInt(form.min_stock.value, 10);
-
-            if (findItemByName(itemName)) {
-                showMessage('มีสินค้านี้ในระบบอยู่แล้ว');
-                return;
-            }
+        // --- Chart Rendering Functions ---
+        function renderTopProductsChart() {
+            if (topProductsChart) topProductsChart.destroy();
             
-            try {
-                const itemMasterRef = collection(db, `artifacts/${appId}/public/data/itemMaster`);
-                await addDoc(itemMasterRef, {
-                    name: itemName,
-                    unit: itemUnit,
-                    minStock: minStock
-                });
-                form.reset();
-                showMessage('เพิ่มสินค้าใหม่เรียบร้อยแล้ว');
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showMessage('เกิดข้อผิดพลาดในการเพิ่มสินค้า');
-            }
-        };
+            const topItems = Object.keys(stockBalanceData)
+                .map(id => ({ id, qty: stockBalanceData[id] }))
+                .filter(item => item.qty > 0)
+                .sort((a, b) => b.qty - a.qty)
+                .slice(0, 5);
 
-        // Handles form submission for receiving items
-        const handleReceiveSubmit = async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const itemId = form.item_id.value;
-            const quantity = parseInt(form.quantity.value, 10);
-            const poNumber = form.po_number.value || null;
-            const ivNumber = form.iv_number.value || null;
-        
-            const item = findItemById(itemId);
-            if (!item) {
-                showMessage('กรุณาเลือกสินค้าที่ถูกต้อง');
-                return;
-            }
-        
-            try {
-                const transactionsRef = collection(db, `artifacts/${appId}/public/data/transactions`);
-                await addDoc(transactionsRef, {
-                    date: new Date().toISOString().slice(0, 10),
-                    type: 'receive',
-                    itemId: item.id,
-                    quantity: quantity,
-                    po: poNumber,
-                    iv: ivNumber
-                });
-                form.reset();
-                showMessage('บันทึกรายการรับเข้าเรียบร้อยแล้ว');
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการรับเข้า');
-            }
-        };
+            const labels = topItems.map(item => itemMasterData[item.id]?.name || 'Unknown');
+            const data = topItems.map(item => item.qty);
 
-        // Handles form submission for issuing items
-        const handleIssueSubmit = async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const itemId = form.item_id.value;
-            const quantity = parseInt(form.quantity.value, 10);
-            const ivNumber = form.iv_number.value || null;
-
-            const item = findItemById(itemId);
-            if (!item) {
-                showMessage('กรุณาเลือกสินค้าที่ถูกต้อง');
-                return;
-            }
-
-            // Check stock for the selected IV
-            const ivStock = transactionsData
-                .filter(t => t.itemId === itemId && t.iv === ivNumber)
-                .reduce((sum, t) => sum + t.quantity, 0);
-
-            if (ivStock < quantity) {
-                showMessage(`สินค้าไม่เพียงพอใน IV ${ivNumber}! มีในสต็อกเพียง ${ivStock} ${item.unit}`);
-                return;
-            }
-
-            try {
-                const transactionsRef = collection(db, `artifacts/${appId}/public/data/transactions`);
-                await addDoc(transactionsRef, {
-                    date: new Date().toISOString().slice(0, 10),
-                    type: 'issue',
-                    itemId: item.id,
-                    quantity: -quantity,
-                    iv: ivNumber
-                });
-                form.reset();
-                showMessage('บันทึกรายการจ่ายออกเรียบร้อยแล้ว');
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการจ่ายออก');
-            }
-        };
-        
-        // Handles CSV file upload (This part is not connected to Firestore yet)
-        const handleCsvUpload = (type, file) => {
-            // ... (CSV upload logic is not updated to use Firestore due to complexity)
-            showMessage('ฟังก์ชันอัปโหลด CSV ยังไม่รองรับการทำงานกับฐานข้อมูล Firestore');
-        };
-
-        // Exports data to a CSV file (This part needs to be updated to use current data from Firestore)
-        const exportToCsv = (data, filename) => {
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            const headers = {
-                receive: ['วันที่', 'ชื่อสินค้า', 'หน่วยนับ', 'จำนวน', 'เลขที่ PO', 'เลขที่ IV'],
-                issue: ['วันที่', 'ชื่อสินค้า', 'หน่วยนับ', 'จำนวน', 'เลขที่ IV']
-            };
-
-            const header = headers[data[0]?.type] || [];
-            csvContent += header.join(',') + '\n';
-            
-            const rows = data.map(t => {
-                const item = itemMasterData.find(i => i.id === t.itemId);
-                if (t.type === 'receive') {
-                    return `${t.date},${item.name},${item.unit},${t.quantity},${t.po || ''},${t.iv || ''}`;
-                } else if (t.type === 'issue') {
-                    return `${t.date},${item.name},${item.unit},${Math.abs(t.quantity)},${t.iv || ''}`;
-                }
-            });
-
-            csvContent += rows.join('\n');
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", filename);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
-        // Sets up all event listeners for the application
-        const setupEventListeners = () => {
-            const tabs = document.querySelectorAll('.tab-button');
-            const contents = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    contents.forEach(content => content.classList.add('hidden'));
-                    document.getElementById(`${tab.dataset.tab}-view`).classList.remove('hidden');
-                });
-            });
-            
-            document.getElementById('add-item-form').addEventListener('submit', handleAddItemFormSubmit);
-            document.getElementById('receive-form').addEventListener('submit', handleReceiveSubmit);
-            document.getElementById('issue-form').addEventListener('submit', handleIssueSubmit);
-
-            // Event listener to update the unit field based on selected item in Receive tab
-            document.getElementById('receive-item-id').addEventListener('change', (e) => {
-                const itemId = e.target.value;
-                const item = findItemById(itemId);
-                const unitInput = document.querySelector('#receive-form input[name="item_unit"]');
-                unitInput.value = item ? item.unit : '';
-            });
-
-            // Event listener to update the unit field and IV dropdown based on selected item in Issue tab
-            document.getElementById('issue-item-id').addEventListener('change', (e) => {
-                const itemId = e.target.value;
-                const item = findItemById(itemId);
-                const unitInput = document.querySelector('#issue-form input[name="item_unit"]');
-                unitInput.value = item ? item.unit : '';
-                populateIssueIVSelect(itemId);
-            });
-
-            document.getElementById('receive-csv-upload').addEventListener('change', (e) => {
-                if (e.target.files.length > 0) handleCsvUpload('receive', e.target.files[0]);
-            });
-            document.getElementById('issue-csv-upload').addEventListener('change', (e) => {
-                if (e.target.files.length > 0) handleCsvUpload('issue', e.target.files[0]);
-            });
-
-            document.getElementById('receive-csv-export').addEventListener('click', () => {
-                exportToCsv(transactionsData.filter(t => t.type === 'receive'), 'receive_history.csv');
-            });
-            document.getElementById('issue-csv-export').addEventListener('click', () => {
-                exportToCsv(transactionsData.filter(t => t.type === 'issue'), 'issue_history.csv');
-            });
-
-            document.getElementById('stock-search').addEventListener('input', (e) => {
-                renderStockBalanceTable(e.target.value);
-            });
-
-            document.getElementById('stock-balance-table').addEventListener('change', async (e) => {
-                if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
-                    const itemId = e.target.dataset.itemId;
-                    const newMinStock = parseInt(e.target.value, 10);
-                    const item = itemMasterData.find(i => i.id === itemId);
-                    
-                    if (item && !isNaN(newMinStock) && newMinStock >= 0) {
-                        try {
-                            const itemDocRef = doc(db, `artifacts/${appId}/public/data/itemMaster`, itemId);
-                            await updateDoc(itemDocRef, {
-                                minStock: newMinStock
-                            });
-                            console.log("Min stock updated in Firestore.");
-                        } catch (e) {
-                            console.error("Error updating document:", e);
-                            showMessage('เกิดข้อผิดพลาดในการอัปเดตสต็อกขั้นต่ำ');
+            const ctx = document.getElementById('top-products-chart').getContext('2d');
+            topProductsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'จำนวนคงเหลือ',
+                        data: data,
+                        backgroundColor: 'rgba(168, 85, 247, 0.6)',
+                        borderColor: 'rgba(126, 34, 206, 1)',
+                        borderWidth: 1,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'จำนวน'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         }
                     }
                 }
             });
-        
-            document.getElementById('stock-sort-name').addEventListener('click', () => {
-                currentSortDirection.name = currentSortDirection.name === 'asc' ? 'desc' : 'asc';
-                currentSortDirection.qty = 'none'; // Reset other sort
-                renderStockBalanceTable();
-            });
-            
-            document.getElementById('stock-sort-qty').addEventListener('click', () => {
-                currentSortDirection.qty = currentSortDirection.qty === 'asc' ? 'desc' : 'asc';
-                currentSortDirection.name = 'none'; // Reset other sort
-                renderStockBalanceTable();
-            });
+        }
 
-            const itemSelect = document.getElementById('stock-by-iv-item-id');
-            itemSelect.addEventListener('change', (e) => {
-                renderStockByIVReport(e.target.value);
+        function renderMovementTypeChart() {
+            if (movementTypeChart) movementTypeChart.destroy();
+            
+            const receiveCount = transactionsData.filter(t => t.type === 'receive').length;
+            const issueCount = transactionsData.filter(t => t.type === 'issue').length;
+
+            const ctx = document.getElementById('movement-type-chart').getContext('2d');
+            movementTypeChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['รับเข้า', 'จ่ายออก'],
+                    datasets: [{
+                        data: [receiveCount, issueCount],
+                        backgroundColor: ['rgba(16, 185, 129, 0.6)', 'rgba(239, 68, 68, 0.6)'],
+                        borderColor: ['rgba(16, 185, 129, 1)', 'rgba(239, 68, 68, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(2) : 0;
+                                    return `${label}: ${value} รายการ (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
             });
-        };
+        }
+        
+        // --- Event Listeners ---
+        messageCloseBtn.addEventListener('click', hideMessage);
+
+        document.querySelectorAll('[data-tab]').forEach(button => {
+            button.addEventListener('click', () => {
+                // Deactivate all tabs and hide all content
+                document.querySelectorAll('[data-tab]').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+
+                // Activate clicked tab and show content
+                button.classList.add('active');
+                const targetId = button.dataset.tab;
+                document.getElementById(`${targetId}-view`).classList.remove('hidden');
+
+                // Special handling for reports to re-render data
+                if (targetId === 'stockByIV') {
+                    renderStockByIVReport();
+                }
+            });
+        });
+
+        // Add Item Form
+        document.getElementById('add-item-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showLoading();
+
+            const form = e.target;
+            const item_name = form.item_name.value.trim();
+            const item_unit = form.item_unit.value.trim();
+            const min_stock = parseInt(form.min_stock.value);
+
+            if (!item_name || !item_unit || isNaN(min_stock) || min_stock < 0) {
+                showMessage('กรุณากรอกข้อมูลสินค้าให้ครบถ้วนและถูกต้อง', 'error');
+                hideLoading();
+                return;
+            }
+
+            try {
+                // Check if item name already exists
+                const itemQuery = query(collection(db, `artifacts/${appId}/public/data/itemMaster`), where('name', '==', item_name));
+                const itemSnapshot = await getDocs(itemQuery);
+
+                if (!itemSnapshot.empty) {
+                    showMessage('ชื่อสินค้านี้มีอยู่แล้ว', 'error');
+                    hideLoading();
+                    return;
+                }
+
+                await addDoc(collection(db, `artifacts/${appId}/public/data/itemMaster`), {
+                    name: item_name,
+                    unit: item_unit,
+                    min_stock: min_stock
+                });
+                showMessage('เพิ่มสินค้าสำเร็จ!');
+                form.reset();
+            } catch (error) {
+                console.error("Error adding new item:", error);
+                showMessage('เกิดข้อผิดพลาดในการเพิ่มสินค้า', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Delete Item Button
+        document.getElementById('item-master-table').addEventListener('click', async (e) => {
+            if (e.target.closest('.delete-item-btn')) {
+                const itemId = e.target.closest('.delete-item-btn').dataset.itemId;
+                // Replace with custom modal later
+                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้?')) {
+                    showLoading();
+                    try {
+                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/itemMaster`, itemId));
+                        showMessage('ลบสินค้าสำเร็จ!');
+                    } catch (error) {
+                        console.error("Error deleting item:", error);
+                        showMessage('เกิดข้อผิดพลาดในการลบสินค้า', 'error');
+                    } finally {
+                        hideLoading();
+                    }
+                }
+            }
+        });
+        
+        // Receive Form
+        document.getElementById('receive-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showLoading();
+            
+            const form = e.target;
+            const itemId = form.item_id.value;
+            const quantity = parseInt(form.quantity.value);
+            const po_number = form.po_number.value.trim();
+            const iv_number = form.iv_number.value.trim();
+            
+            if (!itemId || isNaN(quantity) || quantity <= 0 || !iv_number) {
+                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', 'error');
+                hideLoading();
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/transactions`), {
+                    itemId,
+                    type: 'receive',
+                    quantity,
+                    po_number,
+                    iv_number,
+                    timestamp: Date.now()
+                });
+                showMessage('บันทึกรายการรับเข้าสำเร็จ!');
+                form.reset();
+            } catch (error) {
+                console.error("Error adding receive transaction:", error);
+                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการรับเข้า', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+        
+        // Issue Form
+        document.getElementById('issue-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showLoading();
+            
+            const form = e.target;
+            const itemId = form.item_id.value;
+            const iv_number = form.iv_number.value;
+            const quantity = parseInt(form.quantity.value);
+            
+            if (!itemId || !iv_number || isNaN(quantity) || quantity <= 0) {
+                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', 'error');
+                hideLoading();
+                return;
+            }
+            
+            const currentStock = ivStockData[itemId]?.[iv_number] || 0;
+            if (quantity > currentStock) {
+                showMessage(`จำนวนที่จ่ายออก (${quantity}) เกินสต็อกคงเหลือ (${currentStock})`, 'error');
+                hideLoading();
+                return;
+            }
+            
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/transactions`), {
+                    itemId,
+                    type: 'issue',
+                    quantity,
+                    iv_number,
+                    timestamp: Date.now()
+                });
+                showMessage('บันทึกรายการจ่ายออกสำเร็จ!');
+                form.reset();
+            } catch (error) {
+                console.error("Error adding issue transaction:", error);
+                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการจ่ายออก', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+        
+        // Update unit of measurement for receive form when item is selected
+        document.getElementById('receive-item-id').addEventListener('change', (e) => {
+            const itemId = e.target.value;
+            const item = itemMasterData[itemId];
+            document.querySelector('#receive-form input[name="item_unit"]').value = item ? item.unit : '';
+        });
+        
+        // Update IV dropdown for issue form when item is selected
+        document.getElementById('issue-item-id').addEventListener('change', (e) => {
+            const itemId = e.target.value;
+            const item = itemMasterData[itemId];
+            const ivSelect = document.getElementById('issue-iv-number');
+            ivSelect.innerHTML = '<option value="">-- เลือกเลขที่ IV --</option>';
+            document.querySelector('#issue-form input[name="item_unit"]').value = item ? item.unit : '';
+
+            if (itemId && ivStockData[itemId]) {
+                for (const ivNumber in ivStockData[itemId]) {
+                    const quantity = ivStockData[itemId][ivNumber];
+                    if (quantity > 0) {
+                        const option = document.createElement('option');
+                        option.value = ivNumber;
+                        option.textContent = `${ivNumber} (คงเหลือ: ${quantity} ${item.unit})`;
+                        ivSelect.appendChild(option);
+                    }
+                }
+            }
+        });
+
+        // Event Listener for min-stock input change
+        document.addEventListener('change', async (e) => {
+            if (e.target.classList.contains('min-stock-input')) {
+                const itemId = e.target.dataset.itemId;
+                const newMinStock = parseInt(e.target.value);
+                
+                if (isNaN(newMinStock) || newMinStock < 0) {
+                    showMessage('สต็อกขั้นต่ำต้องเป็นตัวเลขที่ไม่ติดลบ');
+                    e.target.value = itemMasterData[itemId].min_stock;
+                    return;
+                }
+
+                try {
+                    const itemDocRef = doc(db, `artifacts/${appId}/public/data/itemMaster`, itemId);
+                    await updateDoc(itemDocRef, { min_stock: newMinStock });
+                    showMessage('อัปเดตสต็อกขั้นต่ำสำเร็จ!');
+                } catch (e) {
+                    console.error("Error updating document:", e);
+                    showMessage('เกิดข้อผิดพลาดในการอัปเดตสต็อกขั้นต่ำ');
+                }
+            }
+        });
+
+        // Event Listener for search input on stock view
+        document.getElementById('stock-search').addEventListener('input', renderStockBalanceTable);
+
+        // Event Listeners for table sorting
+        document.getElementById('stock-sort-name').addEventListener('click', () => {
+            currentSortDirection.name = currentSortDirection.name === 'asc' ? 'desc' : 'asc';
+            currentSortDirection.qty = 'none';
+            renderStockBalanceTable();
+        });
+        
+        document.getElementById('stock-sort-qty').addEventListener('click', () => {
+            currentSortDirection.qty = currentSortDirection.qty === 'asc' ? 'desc' : 'asc';
+            currentSortDirection.name = 'none';
+            renderStockBalanceTable();
+        });
+        
+        // Event listener for stock by IV item select
+        document.getElementById('stock-by-iv-item-id').addEventListener('change', renderStockByIVReport);
+        
+        // Event listener for exporting receive history
+        document.getElementById('receive-csv-export').addEventListener('click', () => {
+            const receives = transactionsData.filter(t => t.type === 'receive').map(t => {
+                const item = itemMasterData[t.itemId];
+                return {
+                    'วันที่-เวลา': new Date(t.timestamp).toLocaleString('th-TH', { hour12: false }),
+                    'ชื่อสินค้า': item ? item.name : 'Unknown',
+                    'จำนวน': t.quantity,
+                    'หน่วยนับ': item ? item.unit : '',
+                    'เลขที่ PO': t.po_number || '',
+                    'เลขที่ IV': t.iv_number
+                };
+            });
+            const csv = arrayToCsv(receives);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "receive_history.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Event listener for exporting issue history
+        document.getElementById('issue-csv-export').addEventListener('click', () => {
+            const issues = transactionsData.filter(t => t.type === 'issue').map(t => {
+                const item = itemMasterData[t.itemId];
+                return {
+                    'วันที่-เวลา': new Date(t.timestamp).toLocaleString('th-TH', { hour12: false }),
+                    'ชื่อสินค้า': item ? item.name : 'Unknown',
+                    'จำนวน': t.quantity,
+                    'หน่วยนับ': item ? item.unit : '',
+                    'เลขที่ IV': t.iv_number
+                };
+            });
+            const csv = arrayToCsv(issues);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "issue_history.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
     </script>
 </body>
 </html>
