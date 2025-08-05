@@ -111,6 +111,7 @@
             <button data-tab="receive" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">รับเข้าสินค้า</button>
             <button data-tab="issue" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">จ่ายออกสินค้า</button>
             <button data-tab="stockByIV" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">รายงานสต็อกแยก IV</button>
+            <button data-tab="itemMovement" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">ความเคลื่อนไหวสินค้า</button>
             <button data-tab="master" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">ข้อมูลสินค้า</button>
         </nav>
 
@@ -161,22 +162,29 @@
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">สินค้าคงเหลือ</h2>
                     <p class="text-stone-500 mb-6">ตารางนี้แสดงยอดคงเหลือปัจจุบันของสินค้าทุกรายการ และคุณสามารถแก้ไขจำนวนสต็อกขั้นต่ำได้โดยตรงในตาราง</p>
                     <div class="flex flex-wrap gap-4 mb-4">
-                        <input type="text" id="stock-search" placeholder="ค้นหาชื่อสินค้า..." class="flex-grow p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:outline-none">
-                        <button id="stock-sort-name" class="p-3 bg-stone-100 rounded-lg hover:bg-stone-200 transition-colors duration-300"><i class="fas fa-sort-alpha-down"></i> ชื่อสินค้า</button>
-                        <button id="stock-sort-qty" class="p-3 bg-stone-100 rounded-lg hover:bg-stone-200 transition-colors duration-300"><i class="fas fa-sort-numeric-down"></i> จำนวนคงเหลือ</button>
+                        <input type="text" id="stock-search" placeholder="ค้นหาชื่อสินค้า..." class="flex-grow p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                        <button id="sort-by-name-btn" class="bg-purple-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-600 transition-colors duration-300 flex items-center gap-2">
+                            <span>เรียงตามชื่อ</span>
+                            <i class="fas fa-sort-alpha-down"></i>
+                        </button>
+                        <button id="sort-by-quantity-btn" class="bg-purple-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-600 transition-colors duration-300 flex items-center gap-2">
+                            <span>เรียงตามจำนวน</span>
+                            <i class="fas fa-sort-numeric-down"></i>
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-stone-100">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
                                 <tr>
-                                    <th class="p-3 font-semibold text-stone-600">ชื่อสินค้า</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-right">จำนวนคงเหลือ</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-right">สต็อกขั้นต่ำ</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-center">สถานะ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">คงเหลือ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">สต็อกขั้นต่ำ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">สถานะ</th>
                                 </tr>
                             </thead>
-                            <tbody id="stock-balance-table">
-                                <!-- JS will populate this -->
+                            <tbody id="stock-balance-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
                             </tbody>
                         </table>
                     </div>
@@ -184,116 +192,211 @@
             </section>
 
             <!-- Receive View -->
-            <section id="receive-view" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200 mb-8">
+            <section id="receive-view" class="tab-content hidden space-y-8">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">บันทึกรายการรับเข้า</h2>
-                    <p class="text-stone-500 mb-6">ใช้ฟอร์มนี้เพื่อบันทึกรายการรับสินค้า หรืออัปโหลดไฟล์ CSV เพื่อบันทึกหลายรายการพร้อมกัน</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <form id="receive-form" class="space-y-4">
-                            <label for="receive-item-id" class="font-semibold text-stone-700">เลือกชื่อสินค้า:</label>
-                            <select name="item_id" id="receive-item-id" required class="w-full p-3 border border-stone-300 rounded-lg item-select-dropdown focus:ring-2 focus:ring-purple-400 focus:outline-none">
-                                <option value="">-- เลือกชื่อสินค้า --</option>
-                            </select>
-                            <input type="text" name="item_unit" placeholder="หน่วยนับ" readonly class="w-full p-3 bg-stone-100 border border-stone-300 rounded-lg">
-                            <input type="number" name="quantity" placeholder="จำนวน" required min="1" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <input type="text" name="po_number" placeholder="เลขที่ PO (ถ้ามี)" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <input type="text" name="iv_number" placeholder="เลขที่ IV" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <button type="submit" class="w-full p-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors duration-300">บันทึกรายการรับเข้า</button>
-                        </form>
-                        <div class="flex flex-col space-y-4">
-                            <label class="text-stone-700 font-semibold">อัปโหลด CSV</label>
-                            <input type="file" id="receive-csv-upload" accept=".csv" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <button id="receive-csv-export" class="w-full p-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors duration-300">ส่งออกประวัติรับเข้าเป็น CSV</button>
+                    <p class="text-stone-500 mb-6">ใช้ฟอร์มนี้เพื่อบันทึกรายการรับเข้าสินค้า หรือเลือกไฟล์ CSV เพื่อบันทึกหลายรายการพร้อมกัน</p>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Manual Receive Form -->
+                        <div class="p-6 border border-stone-200 rounded-lg">
+                            <h3 class="text-xl font-bold text-stone-700 mb-4">บันทึกรายการด้วยตนเอง</h3>
+                            <form id="receive-form" class="space-y-4">
+                                <div>
+                                    <label for="receive-item" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                                    <select id="receive-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="receive-unit" class="block text-stone-700 font-semibold mb-2">หน่วยนับ</label>
+                                        <input type="text" id="receive-unit" class="w-full p-3 border bg-stone-100 border-stone-300 rounded-lg" readonly>
+                                    </div>
+                                    <div>
+                                        <label for="receive-quantity" class="block text-stone-700 font-semibold mb-2">จำนวน</label>
+                                        <input type="number" id="receive-quantity" min="1" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="receive-po" class="block text-stone-700 font-semibold mb-2">เลขที่ PO (ถ้ามี)</label>
+                                        <input type="text" id="receive-po" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                    </div>
+                                    <div>
+                                        <label for="receive-iv" class="block text-stone-700 font-semibold mb-2">เลขที่ IV</label>
+                                        <input type="text" id="receive-iv" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">บันทึกรายการรับเข้า</button>
+                            </form>
+                        </div>
+                        <!-- CSV Upload Section -->
+                        <div class="p-6 border border-stone-200 rounded-lg">
+                            <h3 class="text-xl font-bold text-stone-700 mb-4">อัปโหลด CSV</h3>
+                            <p class="text-stone-500 mb-4">รูปแบบไฟล์: ชื่อสินค้า,จำนวน,เลขที่ PO,เลขที่ IV</p>
+                            <div class="flex flex-col space-y-4">
+                                <label for="receive-csv-upload" class="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-600 transition-colors duration-300 cursor-pointer text-center">
+                                    <i class="fas fa-upload mr-2"></i>
+                                    เลือกไฟล์ CSV
+                                </label>
+                                <input type="file" id="receive-csv-upload" class="hidden" accept=".csv">
+                                <button id="process-receive-csv-btn" class="bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300" disabled>
+                                    ส่งประวัติการรับเข้าจากไฟล์ CSV
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-                    <h3 class="text-xl font-bold text-stone-700 mb-4">ประวัติการรับเข้า</h3>
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">ประวัติการรับเข้า</h2>
+                    <button id="receive-csv-export" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors duration-300 mb-4 flex items-center gap-2">
+                        <i class="fas fa-file-csv"></i>
+                        ดาวน์โหลด CSV
+                    </button>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-stone-100">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
                                 <tr>
-                                    <th class="p-3 font-semibold text-stone-600">วันที่</th>
-                                    <th class="p-3 font-semibold text-stone-600">ชื่อสินค้า</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-right">จำนวน</th>
-                                    <th class="p-3 font-semibold text-stone-600">PO</th>
-                                    <th class="p-3 font-semibold text-stone-600">IV</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">วันที่</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จำนวน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ PO</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
                                 </tr>
                             </thead>
-                            <tbody id="receive-history-table"></tbody>
+                            <tbody id="receive-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
+                            </tbody>
                         </table>
                     </div>
-                    <div id="receive-pagination" class="flex justify-center mt-4 space-x-2"></div>
                 </div>
             </section>
 
             <!-- Issue View -->
-            <section id="issue-view" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200 mb-8">
+            <section id="issue-view" class="tab-content hidden space-y-8">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">บันทึกรายการจ่ายออก</h2>
-                    <p class="text-stone-500 mb-6">ใช้ฟอร์มนี้เพื่อบันทึกรายการจ่ายสินค้า หรืออัปโหลดไฟล์ CSV เพื่อบันทึกหลายรายการพร้อมกัน</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <form id="issue-form" class="space-y-4">
-                            <label for="issue-item-id" class="font-semibold text-stone-700">เลือกชื่อสินค้า:</label>
-                            <select name="item_id" id="issue-item-id" required class="w-full p-3 border border-stone-300 rounded-lg item-select-dropdown focus:ring-2 focus:ring-purple-400 focus:outline-none">
-                                <option value="">-- เลือกชื่อสินค้า --</option>
-                            </select>
-                            <input type="text" name="item_unit" placeholder="หน่วยนับ" readonly class="w-full p-3 bg-stone-100 border border-stone-300 rounded-lg">
-                            <input type="number" name="quantity" placeholder="จำนวน" required min="1" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <!-- Modified section: Replaced input with a select dropdown for IV number -->
-                            <label for="issue-iv-number" class="font-semibold text-stone-700">เลือกเลขที่ IV:</label>
-                            <select name="iv_number" id="issue-iv-number" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:outline-none">
-                                <option value="">-- เลือกเลขที่ IV --</option>
-                            </select>
-                            <button type="submit" class="w-full p-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors duration-300">บันทึกรายการจ่ายออก</button>
-                        </form>
-                        <div class="flex flex-col space-y-4">
-                            <label class="text-stone-700 font-semibold">อัปโหลด CSV</label>
-                            <input type="file" id="issue-csv-upload" accept=".csv" class="w-full p-3 border border-stone-300 rounded-lg">
-                            <button id="issue-csv-export" class="w-full p-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors duration-300">ส่งออกประวัติจ่ายออกเป็น CSV</button>
+                    <p class="text-stone-500 mb-6">ใช้ฟอร์มนี้เพื่อบันทึกรายการจ่ายออกสินค้า หรือเลือกไฟล์ CSV เพื่อบันทึกหลายรายการพร้อมกัน</p>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Manual Issue Form -->
+                        <div class="p-6 border border-stone-200 rounded-lg">
+                            <h3 class="text-xl font-bold text-stone-700 mb-4">บันทึกรายการด้วยตนเอง</h3>
+                            <form id="issue-form" class="space-y-4">
+                                <div>
+                                    <label for="issue-item" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                                    <select id="issue-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="issue-unit" class="block text-stone-700 font-semibold mb-2">หน่วยนับ</label>
+                                        <input type="text" id="issue-unit" class="w-full p-3 border bg-stone-100 border-stone-300 rounded-lg" readonly>
+                                    </div>
+                                    <div>
+                                        <label for="issue-quantity" class="block text-stone-700 font-semibold mb-2">จำนวน</label>
+                                        <input type="number" id="issue-quantity" min="1" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="issue-iv" class="block text-stone-700 font-semibold mb-2">เลขที่ IV</label>
+                                    <select id="issue-iv" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
+                                </div>
+                                <div>
+                                    <label for="issue-iv-stock" class="block text-stone-700 font-semibold mb-2">คงเหลือสำหรับ IV ที่เลือก</label>
+                                    <span id="issue-iv-stock" class="block w-full p-3 bg-stone-100 border border-stone-300 rounded-lg font-mono text-purple-700">0</span>
+                                </div>
+                                <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">บันทึกรายการจ่ายออก</button>
+                            </form>
+                        </div>
+                         <!-- CSV Upload Section -->
+                         <div class="p-6 border border-stone-200 rounded-lg">
+                            <h3 class="text-xl font-bold text-stone-700 mb-4">อัปโหลด CSV</h3>
+                            <p class="text-stone-500 mb-4">รูปแบบไฟล์: ชื่อสินค้า,จำนวน,เลขที่ IV</p>
+                            <div class="flex flex-col space-y-4">
+                                <label for="issue-csv-upload" class="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-600 transition-colors duration-300 cursor-pointer text-center">
+                                    <i class="fas fa-upload mr-2"></i>
+                                    เลือกไฟล์ CSV
+                                </label>
+                                <input type="file" id="issue-csv-upload" class="hidden" accept=".csv">
+                                <button id="process-issue-csv-btn" class="bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300" disabled>
+                                    ส่งประวัติการจ่ายออกจากไฟล์ CSV
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-                    <h3 class="text-xl font-bold text-stone-700 mb-4">ประวัติการจ่ายออก</h3>
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">ประวัติการจ่ายออก</h2>
+                    <button id="issue-csv-export" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors duration-300 mb-4 flex items-center gap-2">
+                        <i class="fas fa-file-csv"></i>
+                        ดาวน์โหลด CSV
+                    </button>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-stone-100">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
                                 <tr>
-                                    <th class="p-3 font-semibold text-stone-600">วันที่</th>
-                                    <th class="p-3 font-semibold text-stone-600">ชื่อสินค้า</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-right">จำนวน</th>
-                                    <th class="p-3 font-semibold text-stone-600">IV</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">วันที่</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จำนวน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
                                 </tr>
                             </thead>
-                            <tbody id="issue-history-table"></tbody>
+                            <tbody id="issue-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
+                            </tbody>
                         </table>
                     </div>
-                    <div id="issue-pagination" class="flex justify-center mt-4 space-x-2"></div>
                 </div>
             </section>
 
             <!-- Stock by IV Report View -->
             <section id="stockByIV-view" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-                    <h2 class="text-2xl font-bold text-stone-700 mb-4">รายงานสต็อกคงเหลือแยกตามเลขที่ IV</h2>
-                    <p class="text-stone-500 mb-6">เลือกชื่อสินค้าเพื่อดูยอดคงเหลือของสินค้านั้นๆ โดยแยกตามเลขที่ IV</p>
-                    <div class="flex flex-wrap gap-4 mb-4 items-center">
-                        <label for="stock-by-iv-item-id" class="font-semibold text-stone-700">เลือกชื่อสินค้า:</label>
-                        <select id="stock-by-iv-item-id" class="p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:outline-none flex-grow item-select-dropdown">
-                            <option value="">-- เลือกชื่อสินค้า --</option>
-                        </select>
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">รายงานสต็อกแยก IV</h2>
+                    <p class="text-stone-500 mb-6">เลือกชื่อสินค้าเพื่อดูยอดคงเหลือแยกตามเลขที่ IV</p>
+                    <div class="mb-4">
+                        <label for="stock-by-iv-item" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                        <select id="stock-by-iv-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
                     </div>
-                    <div class="overflow-x-auto mt-6">
-                        <table class="w-full text-left">
-                            <thead class="bg-stone-100">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
                                 <tr>
-                                    <th class="p-3 font-semibold text-stone-600">เลขที่ IV</th>
-                                    <th class="p-3 font-semibold text-stone-600">จำนวนคงเหลือ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จำนวนคงเหลือ</th>
                                 </tr>
                             </thead>
-                            <tbody id="stock-by-iv-table">
-                                <tr id="stock-by-iv-placeholder"><td colspan="2" class="text-center p-4 text-stone-500">กรุณาเลือกชื่อสินค้าเพื่อดูรายงาน</td></tr>
+                            <tbody id="stock-by-iv-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Item Movement Report View -->
+            <section id="itemMovement-view" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">ความเคลื่อนไหวสินค้า</h2>
+                    <p class="text-stone-500 mb-6">เลือกชื่อสินค้าเพื่อดูประวัติการรับเข้าและเบิกจ่ายทั้งหมด</p>
+                    <div class="mb-4">
+                        <label for="item-movement-item" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                        <select id="item-movement-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
+                    </div>
+                    <p class="text-lg font-semibold text-stone-700 mb-4">ยอดคงเหลือปัจจุบัน: <span id="item-movement-current-stock" class="text-purple-600">0</span></p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">วันที่</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ประเภท</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จำนวน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ PO</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
+                                </tr>
+                            </thead>
+                            <tbody id="item-movement-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
                             </tbody>
                         </table>
                     </div>
@@ -301,779 +404,1071 @@
             </section>
 
             <!-- Item Master View -->
-            <section id="master-view" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200 mb-8">
-                    <h2 class="text-2xl font-bold text-stone-700 mb-4">เพิ่มสินค้าใหม่</h2>
-                    <form id="add-item-form" class="space-y-4">
-                        <input type="text" name="item_name" placeholder="ชื่อสินค้า" required class="w-full p-3 border border-stone-300 rounded-lg">
-                        <input type="text" name="item_unit" placeholder="หน่วยนับ" required class="w-full p-3 border border-stone-300 rounded-lg">
-                        <input type="number" name="min_stock" placeholder="สต็อกขั้นต่ำ" required min="0" class="w-full p-3 border border-stone-300 rounded-lg">
-                        <button type="submit" class="w-full p-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors duration-300">เพิ่มสินค้า</button>
+            <section id="master-view" class="tab-content hidden space-y-8">
+                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">ข้อมูลสินค้า</h2>
+                    <p class="text-stone-500 mb-6">ใช้ส่วนนี้เพื่อเพิ่ม, แก้ไข, หรือลบรายการสินค้าหลัก</p>
+                    <form id="master-form" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label for="master-name" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                                <input type="text" id="master-name" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="master-unit" class="block text-stone-700 font-semibold mb-2">หน่วยนับ</label>
+                                <input type="text" id="master-unit" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                            </div>
+                            <div>
+                                <label for="master-min-stock" class="block text-stone-700 font-semibold mb-2">สต็อกขั้นต่ำ</label>
+                                <input type="number" id="master-min-stock" min="0" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">เพิ่มสินค้า</button>
                     </form>
                 </div>
+
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-                    <h2 class="text-2xl font-bold text-stone-700 mb-4">ข้อมูลหลักของสินค้า (Item Master)</h2>
-                    <p class="text-stone-500 mb-6">ตารางนี้เป็นข้อมูลอ้างอิงสำหรับสินค้าทั้งหมดที่มีในระบบ</p>
+                    <h2 class="text-2xl font-bold text-stone-700 mb-4">จัดการรายการสินค้าหลัก</h2>
+                    <p class="text-stone-500 mb-6">คุณสามารถจัดการรายการสินค้าหลักทั้งหมดได้จากที่นี่</p>
+                    
+                    <!-- CSV Import/Export Controls -->
+                    <div class="flex flex-wrap items-center gap-4 mb-4">
+                        <button id="master-csv-export" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2">
+                            <i class="fas fa-download"></i>
+                            ดาวน์โหลด CSV
+                        </button>
+                        <label for="master-csv-upload" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors duration-300 cursor-pointer flex items-center gap-2">
+                            <i class="fas fa-upload"></i>
+                            อัปโหลด CSV
+                        </label>
+                        <input type="file" id="master-csv-upload" class="hidden" accept=".csv">
+                    </div>
+
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-stone-100">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm">
+                            <thead class="bg-stone-50">
                                 <tr>
-                                    <th class="p-3 font-semibold text-stone-600">ชื่อสินค้า</th>
-                                    <th class="p-3 font-semibold text-stone-600">หน่วยนับ</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-right">สต็อกขั้นต่ำ</th>
-                                    <th class="p-3 font-semibold text-stone-600 text-center">แก้ไข/ลบ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">สต็อกขั้นต่ำ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จัดการ</th>
                                 </tr>
                             </thead>
-                            <tbody id="item-master-table">
-                                <!-- JS will populate this -->
+                            <tbody id="master-table-body" class="divide-y divide-stone-200">
+                                <!-- Data will be injected here -->
                             </tbody>
                         </table>
                     </div>
                 </div>
             </section>
+
         </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // ** Global Variables provided by the Canvas environment **
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyA61Zok6QZeerwXDM6cFv9tBb1Y8SHmpl0",
-            authDomain: "my-stock-supply-3518a.firebaseapp.com",
-            projectId: "my-stock-supply-3518a",
-            storageBucket: "my-stock-supply-3518a.firebasestorage.app",
-            messagingSenderId: "328343672729",
-            appId: "1:328343672729:web:61aaf8976b5b52b094e508"
-        };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        import {
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            addDoc,
+            setDoc,
+            updateDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            query,
+            where,
+            runTransaction,
+            getDocs,
+            writeBatch
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        
-        // State variables
+        // Global variables for Firebase and data
+        let app;
+        let db;
+        let auth;
         let userId;
-        let itemMasterData = {};
-        let transactionsData = [];
-        let stockBalanceData = {};
-        let ivStockData = {};
-        
-        // UI Elements
+        let appId; // <-- Correctly defined global variable
+
+        let itemMasterData = {}; // Stores item master data by itemId
+        let stockBalanceData = {}; // Stores stock balance data by itemId
+        let transactionsData = []; // Stores all transaction history
+        let stockByIVData = {}; // New: Stores stock by IV number
+
+        // --- UI Elements ---
         const loadingOverlay = document.getElementById('loading-overlay');
+        const mainContent = document.getElementById('main-content');
+        const userIdSpan = document.getElementById('user-id');
+        const tabButtons = document.querySelectorAll('.tab-button');
         const messageBox = document.getElementById('message-box');
         const messageContent = document.getElementById('message-content');
         const messageCloseBtn = document.getElementById('message-close-btn');
 
-        // Chart instances
+        // --- Dashboard Elements ---
+        const totalProductsSpan = document.getElementById('total-products');
+        const totalStockQuantitySpan = document.getElementById('total-stock-quantity');
+        const totalReceivesSpan = document.getElementById('total-receives');
+        const totalIssuesSpan = document.getElementById('total-issues');
+        const topProductsChartCtx = document.getElementById('top-products-chart').getContext('2d');
+        const movementTypeChartCtx = document.getElementById('movement-type-chart').getContext('2d');
         let topProductsChart;
         let movementTypeChart;
 
-        // Sorting state
-        let currentSortDirection = {
-            name: 'asc',
-            qty: 'none'
-        };
+        // --- Stock Balance Elements ---
+        const stockSearchInput = document.getElementById('stock-search');
+        const stockBalanceTableBody = document.getElementById('stock-balance-table-body');
+        const sortByNameBtn = document.getElementById('sort-by-name-btn');
+        const sortByQuantityBtn = document.getElementById('sort-by-quantity-btn');
 
-        // --- Utility Functions ---
-        function showMessage(message, type = 'info') {
+        // --- Receive View Elements ---
+        const receiveForm = document.getElementById('receive-form');
+        const receiveItemSelect = document.getElementById('receive-item');
+        const receiveUnitInput = document.getElementById('receive-unit');
+        const receiveQuantityInput = document.getElementById('receive-quantity');
+        const receivePoInput = document.getElementById('receive-po');
+        const receiveIvInput = document.getElementById('receive-iv');
+        const receiveTableBody = document.getElementById('receive-table-body');
+        const receiveCsvUploadInput = document.getElementById('receive-csv-upload');
+        const processReceiveCsvBtn = document.getElementById('process-receive-csv-btn');
+        let receiveCsvFile = null;
+
+        // --- Issue View Elements ---
+        const issueForm = document.getElementById('issue-form');
+        const issueItemSelect = document.getElementById('issue-item');
+        const issueUnitInput = document.getElementById('issue-unit');
+        const issueIvSelect = document.getElementById('issue-iv'); // Updated to select
+        const issueIvStockSpan = document.getElementById('issue-iv-stock'); // New element to display stock
+        const issueQuantityInput = document.getElementById('issue-quantity');
+        const issueTableBody = document.getElementById('issue-table-body');
+        const issueCsvUploadInput = document.getElementById('issue-csv-upload');
+        const processIssueCsvBtn = document.getElementById('process-issue-csv-btn');
+        let issueCsvFile = null;
+
+        // --- Stock by IV Report Elements ---
+        const stockByIVItemSelect = document.getElementById('stock-by-iv-item');
+        const stockByIVTableBody = document.getElementById('stock-by-iv-table-body');
+
+        // --- Item Movement Report Elements ---
+        const itemMovementItemSelect = document.getElementById('item-movement-item');
+        const itemMovementCurrentStockSpan = document.getElementById('item-movement-current-stock');
+        const itemMovementTableBody = document.getElementById('item-movement-table-body');
+
+        // --- Master Data Elements ---
+        const masterForm = document.getElementById('master-form');
+        const masterNameInput = document.getElementById('master-name');
+        const masterUnitInput = document.getElementById('master-unit');
+        const masterMinStockInput = document.getElementById('master-min-stock');
+        const masterTableBody = document.getElementById('master-table-body');
+        const masterCsvExportBtn = document.getElementById('master-csv-export');
+        const masterCsvUploadInput = document.getElementById('master-csv-upload');
+
+        // --- Helper Functions ---
+        function showMessage(message) {
             messageContent.textContent = message;
             messageBox.classList.remove('hidden');
-            // Can add different styling based on type later
         }
 
         function hideMessage() {
             messageBox.classList.add('hidden');
         }
 
-        function showLoading() {
-            loadingOverlay.classList.remove('hidden');
+        function setLoading(isLoading) {
+            loadingOverlay.style.display = isLoading ? 'flex' : 'none';
         }
 
-        function hideLoading() {
-            loadingOverlay.classList.add('hidden');
-        }
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            document.getElementById(`${tabName}-view`).classList.remove('hidden');
 
-        function csvToArray(text) {
-            const result = [];
-            const rows = text.split('\n');
-            if (rows.length > 0) {
-                const headers = rows[0].split(',').map(h => h.trim());
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i].split(',').map(d => d.trim());
-                    if (row.length === headers.length) {
-                        const obj = {};
-                        headers.forEach((header, index) => {
-                            obj[header] = row[index];
-                        });
-                        result.push(obj);
-                    }
-                }
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (tabName === 'dashboard') {
+                renderDashboardCharts();
             }
-            return result;
         }
 
         function arrayToCsv(data) {
-            if (!data || data.length === 0) return '';
-            const headers = Object.keys(data[0]);
-            const csvRows = [
-                headers.join(','),
-                ...data.map(row => headers.map(header => {
-                    const value = row[header];
-                    // Handle values that might contain commas or quotes
-                    const formattedValue = (typeof value === 'string' && (value.includes(',') || value.includes('"'))) ? `"${value.replace(/"/g, '""')}"` : value;
-                    return formattedValue;
-                }).join(','))
-            ];
-            return csvRows.join('\n');
+            if (data.length === 0) return '';
+            const header = Object.keys(data[0]).join(',');
+            const rows = data.map(row =>
+                Object.values(row)
+                .map(v => (v === null || v === undefined ? '' : String(v)))
+                .map(v => `"${v.replace(/"/g, '""')}"`)
+                .join(',')
+            );
+            return [header, ...rows].join('\r\n');
         }
 
-
-        // --- Firebase Initialization and Listeners ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-            } else {
-                try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                        userId = auth.currentUser.uid;
-                    } else {
-                        await signInAnonymously(auth);
-                        userId = auth.currentUser.uid;
+        function csvToArray(csv) {
+            const lines = csv.split('\n').filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            const text = lines[0].startsWith('\ufeff') ? lines[0].substring(1) + '\n' + lines.slice(1).join('\n') : csv;
+            const processedLines = text.split('\n').filter(line => line.trim() !== '');
+            
+            const headers = processedLines[0].split(',').map(header => header.trim().replace(/"/g, ''));
+            const data = [];
+            for (let i = 1; i < processedLines.length; i++) {
+                const values = processedLines[i].split(',').map(value => value.trim().replace(/"/g, ''));
+                if (values.length === headers.length) {
+                    const obj = {};
+                    for (let j = 0; j < headers.length; j++) {
+                        const parsedValue = isNaN(Number(values[j])) || values[j] === '' ? values[j] : Number(values[j]);
+                        obj[headers[j]] = parsedValue;
                     }
-                } catch (error) {
-                    console.error("Firebase Auth Error:", error);
-                    showMessage('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์ผู้ใช้', 'error');
+                    data.push(obj);
                 }
             }
-            if (userId) {
-                document.getElementById('user-id').textContent = userId;
-                initializeListeners();
-            }
-        });
+            return data;
+        }
 
-        function initializeListeners() {
-            showLoading();
-
-            // Item Master Listener
-            onSnapshot(collection(db, `artifacts/${appId}/public/data/itemMaster`), (snapshot) => {
-                itemMasterData = {};
-                snapshot.forEach((doc) => {
-                    itemMasterData[doc.id] = doc.data();
-                });
-                renderDropdowns();
-                renderItemMasterTable();
-                renderStockBalanceTable();
-                calculateDashboardStats();
-                hideLoading();
-            }, (error) => {
-                console.error("Error fetching itemMaster data:", error);
-                showMessage('เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า', 'error');
-                hideLoading();
-            });
-
-            // Transactions Listener
-            onSnapshot(collection(db, `artifacts/${appId}/public/data/transactions`), (snapshot) => {
-                transactionsData = [];
-                snapshot.forEach((doc) => {
-                    transactionsData.push({ id: doc.id, ...doc.data() });
-                });
-                calculateStockBalance();
-                renderReceiveHistoryTable();
-                renderIssueHistoryTable();
-                calculateDashboardStats();
+        function calculateStockByIV() {
+            stockByIVData = {};
+            transactionsData.forEach(t => {
+                if (!t.itemId || !t.iv_number) return;
                 
-                // ** FIX: Explicitly call the report renderer here to update the view **
-                renderStockByIVReport();
-            }, (error) => {
-                console.error("Error fetching transactions data:", error);
-                showMessage('เกิดข้อผิดพลาดในการโหลดประวัติการทำรายการ', 'error');
-            });
-        }
-        
-        // --- Data Calculation Functions ---
-        function calculateStockBalance() {
-            stockBalanceData = {};
-            ivStockData = {};
-
-            for (const itemId in itemMasterData) {
-                stockBalanceData[itemId] = 0;
-                ivStockData[itemId] = {};
-            }
-            
-            // FIX: Sort transactions by timestamp before processing
-            const sortedTransactions = [...transactionsData].sort((a, b) => a.timestamp - b.timestamp);
-
-            sortedTransactions.forEach(transaction => {
-                if (stockBalanceData[transaction.itemId] !== undefined) {
-                    if (transaction.type === 'receive') {
-                        stockBalanceData[transaction.itemId] += transaction.quantity;
-                        if (ivStockData[transaction.itemId][transaction.iv_number]) {
-                            ivStockData[transaction.itemId][transaction.iv_number] += transaction.quantity;
-                        } else {
-                            ivStockData[transaction.itemId][transaction.iv_number] = transaction.quantity;
-                        }
-                    } else if (transaction.type === 'issue') {
-                        stockBalanceData[transaction.itemId] -= transaction.quantity;
-                        // The issue transaction logic is correct assuming the IV exists
-                        // The bug was the unsorted data causing it to not exist yet
-                        if (ivStockData[transaction.itemId][transaction.iv_number]) {
-                            ivStockData[transaction.itemId][transaction.iv_number] -= transaction.quantity;
-                        }
-                    }
+                if (!stockByIVData[t.itemId]) {
+                    stockByIVData[t.itemId] = {};
                 }
-            });
-            renderStockBalanceTable();
-            renderStockByIVReport(); // FIX: Ensure this is called to update the report view
-        }
-
-        function calculateDashboardStats() {
-            // Update dashboard summary cards
-            const totalProducts = Object.keys(itemMasterData).length;
-            const totalStockQuantity = Object.values(stockBalanceData).reduce((sum, qty) => sum + qty, 0);
-            const totalReceives = transactionsData.filter(t => t.type === 'receive').length;
-            const totalIssues = transactionsData.filter(t => t.type === 'issue').length;
-
-            document.getElementById('total-products').textContent = totalProducts;
-            document.getElementById('total-stock-quantity').textContent = totalStockQuantity;
-            document.getElementById('total-receives').textContent = totalReceives;
-            document.getElementById('total-issues').textContent = totalIssues;
-            
-            // Update charts
-            renderTopProductsChart();
-            renderMovementTypeChart();
-        }
-
-        // --- Render Functions ---
-        function renderDropdowns() {
-            const itemSelects = document.querySelectorAll('.item-select-dropdown');
-            itemSelects.forEach(select => {
-                const currentSelection = select.value;
-                select.innerHTML = '<option value="">-- เลือกชื่อสินค้า --</option>';
-                for (const itemId in itemMasterData) {
-                    const item = itemMasterData[itemId];
-                    const option = document.createElement('option');
-                    option.value = itemId;
-                    option.textContent = item.name;
-                    select.appendChild(option);
+                if (!stockByIVData[t.itemId][t.iv_number]) {
+                    stockByIVData[t.itemId][t.iv_number] = 0;
                 }
-                // Restore previous selection if it still exists
-                if (currentSelection && itemMasterData[currentSelection]) {
-                    select.value = currentSelection;
+                
+                if (t.type === 'receive') {
+                    stockByIVData[t.itemId][t.iv_number] += t.quantity;
+                } else if (t.type === 'issue') {
+                    stockByIVData[t.itemId][t.iv_number] -= t.quantity;
                 }
             });
         }
-        
-        function renderItemMasterTable() {
-            const tableBody = document.getElementById('item-master-table');
-            tableBody.innerHTML = '';
-            for (const itemId in itemMasterData) {
-                const item = itemMasterData[itemId];
-                const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50 transition-colors duration-300';
-                row.innerHTML = `
-                    <td class="p-3 text-stone-700">${item.name}</td>
-                    <td class="p-3 text-stone-700">${item.unit}</td>
-                    <td class="p-3 text-stone-700 text-right">
-                        <input type="number" data-item-id="${itemId}" value="${item.min_stock}" class="w-20 p-1 border border-stone-300 rounded-md text-right min-stock-input">
-                    </td>
-                    <td class="p-3 text-center">
-                        <button class="text-red-500 hover:text-red-700 transition-colors duration-300 delete-item-btn" data-item-id="${itemId}"><i class="fas fa-trash-alt"></i></button>
-                    </td>
-                `;
-                tableBody.appendChild(row);
-            }
-        }
 
-        function renderStockBalanceTable() {
-            const tableBody = document.getElementById('stock-balance-table');
-            tableBody.innerHTML = '';
-            
-            let sortedItems = Object.keys(stockBalanceData).map(itemId => ({
-                id: itemId,
-                name: itemMasterData[itemId]?.name,
-                unit: itemMasterData[itemId]?.unit,
-                qty: stockBalanceData[itemId],
-                minStock: itemMasterData[itemId]?.min_stock
-            })).filter(item => item.name); // Filter out items not in itemMasterData anymore
-            
-            const searchTerm = document.getElementById('stock-search').value.toLowerCase();
-            if (searchTerm) {
-                sortedItems = sortedItems.filter(item => item.name.toLowerCase().includes(searchTerm));
-            }
-
-            if (currentSortDirection.name === 'asc') {
-                sortedItems.sort((a, b) => a.name.localeCompare(b.name));
-            } else if (currentSortDirection.name === 'desc') {
-                sortedItems.sort((a, b) => b.name.localeCompare(a.name));
-            } else if (currentSortDirection.qty === 'asc') {
-                sortedItems.sort((a, b) => a.qty - b.qty);
-            } else if (currentSortDirection.qty === 'desc') {
-                sortedItems.sort((a, b) => b.qty - a.qty);
-            }
-            
-            sortedItems.forEach(item => {
-                const isLow = item.qty < item.minStock;
-                const statusIcon = isLow ? '<i class="fas fa-exclamation-triangle text-red-500"></i>' : '<i class="fas fa-check-circle text-green-500"></i>';
-                const row = document.createElement('tr');
-                row.className = isLow ? 'bg-red-50 border-b border-stone-200' : 'border-b border-stone-200';
-
-                row.innerHTML = `
-                    <td class="p-3 text-stone-700">${item.name}</td>
-                    <td class="p-3 text-stone-700 text-right">${item.qty} ${item.unit}</td>
-                    <td class="p-3 text-stone-700 text-right">
-                        <input type="number" data-item-id="${item.id}" value="${item.minStock}" class="w-20 p-1 border border-stone-300 rounded-md text-right min-stock-input">
-                    </td>
-                    <td class="p-3 text-center">${statusIcon}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-        
-        function renderReceiveHistoryTable() {
-            const tableBody = document.getElementById('receive-history-table');
-            tableBody.innerHTML = '';
-            
-            const receives = transactionsData.filter(t => t.type === 'receive').sort((a, b) => b.timestamp - a.timestamp);
-            
-            receives.forEach(transaction => {
-                const item = itemMasterData[transaction.itemId];
-                if (!item) return;
-                const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                row.innerHTML = `
-                    <td class="p-3 text-stone-700">${new Date(transaction.timestamp).toLocaleString('th-TH', { hour12: false })}</td>
-                    <td class="p-3 text-stone-700">${item.name}</td>
-                    <td class="p-3 text-stone-700 text-right">${transaction.quantity} ${item.unit}</td>
-                    <td class="p-3 text-stone-700">${transaction.po_number || '-'}</td>
-                    <td class="p-3 text-stone-700">${transaction.iv_number}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-
-        function renderIssueHistoryTable() {
-            const tableBody = document.getElementById('issue-history-table');
-            tableBody.innerHTML = '';
-            
-            const issues = transactionsData.filter(t => t.type === 'issue').sort((a, b) => b.timestamp - a.timestamp);
-            
-            issues.forEach(transaction => {
-                const item = itemMasterData[transaction.itemId];
-                if (!item) return;
-                const row = document.createElement('tr');
-                row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                row.innerHTML = `
-                    <td class="p-3 text-stone-700">${new Date(transaction.timestamp).toLocaleString('th-TH', { hour12: false })}</td>
-                    <td class="p-3 text-stone-700">${item.name}</td>
-                    <td class="p-3 text-stone-700 text-right">${transaction.quantity} ${item.unit}</td>
-                    <td class="p-3 text-stone-700">${transaction.iv_number}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-
-        function renderStockByIVReport() {
-            const tableBody = document.getElementById('stock-by-iv-table');
-            const itemId = document.getElementById('stock-by-iv-item-id').value;
-            tableBody.innerHTML = '';
-
-            if (!itemId) {
-                tableBody.innerHTML = `<tr id="stock-by-iv-placeholder"><td colspan="2" class="text-center p-4 text-stone-500">กรุณาเลือกชื่อสินค้าเพื่อดูรายงาน</td></tr>`;
-                return;
-            }
-
-            if (ivStockData[itemId]) {
-                const item = itemMasterData[itemId];
-                for (const ivNumber in ivStockData[itemId]) {
-                    const quantity = ivStockData[itemId][ivNumber];
-                    if (quantity > 0) {
-                        const row = document.createElement('tr');
-                        row.className = 'border-b border-stone-200 hover:bg-stone-50';
-                        row.innerHTML = `
-                            <td class="p-3 text-stone-700">${ivNumber}</td>
-                            <td class="p-3 text-stone-700 text-right">${quantity} ${item.unit}</td>
-                        `;
-                        tableBody.appendChild(row);
-                    }
-                }
-            }
-        }
-
-        // --- Chart Rendering Functions ---
-        function renderTopProductsChart() {
-            if (topProductsChart) topProductsChart.destroy();
-            
-            const topItems = Object.keys(stockBalanceData)
-                .map(id => ({ id, qty: stockBalanceData[id] }))
-                .filter(item => item.qty > 0)
-                .sort((a, b) => b.qty - a.qty)
+        // --- Data Rendering Functions ---
+        function renderDashboardCharts() {
+            const sortedStock = Object.values(stockBalanceData)
+                .sort((a, b) => b.quantity - a.quantity)
                 .slice(0, 5);
 
-            const labels = topItems.map(item => itemMasterData[item.id]?.name || 'Unknown');
-            const data = topItems.map(item => item.qty);
+            const topProductLabels = sortedStock.map(d => itemMasterData[d.itemId]?.name || 'Unknown');
+            const topProductQuantities = sortedStock.map(d => d.quantity);
 
-            const ctx = document.getElementById('top-products-chart').getContext('2d');
-            topProductsChart = new Chart(ctx, {
+            if (topProductsChart) topProductsChart.destroy();
+            if (movementTypeChart) movementTypeChart.destroy();
+
+            topProductsChart = new Chart(topProductsChartCtx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: topProductLabels,
                     datasets: [{
-                        label: 'จำนวนคงเหลือ',
-                        data: data,
+                        label: 'คงเหลือ',
+                        data: topProductQuantities,
                         backgroundColor: 'rgba(168, 85, 247, 0.6)',
-                        borderColor: 'rgba(126, 34, 206, 1)',
-                        borderWidth: 1,
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'จำนวน'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-        }
-
-        function renderMovementTypeChart() {
-            if (movementTypeChart) movementTypeChart.destroy();
-            
-            const receiveCount = transactionsData.filter(t => t.type === 'receive').length;
-            const issueCount = transactionsData.filter(t => t.type === 'issue').length;
-
-            const ctx = document.getElementById('movement-type-chart').getContext('2d');
-            movementTypeChart = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: ['รับเข้า', 'จ่ายออก'],
-                    datasets: [{
-                        data: [receiveCount, issueCount],
-                        backgroundColor: ['rgba(16, 185, 129, 0.6)', 'rgba(239, 68, 68, 0.6)'],
-                        borderColor: ['rgba(16, 185, 129, 1)', 'rgba(239, 68, 68, 1)'],
+                        borderColor: 'rgba(168, 85, 247, 1)',
                         borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.parsed || 0;
-                                    const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(2) : 0;
-                                    return `${label}: ${value} รายการ (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            const receiveCount = transactionsData.filter(t => t.type === 'receive').length;
+            const issueCount = transactionsData.filter(t => t.type === 'issue').length;
+
+            movementTypeChart = new Chart(movementTypeChartCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['รับเข้า', 'เบิกจ่าย'],
+                    datasets: [{
+                        data: [receiveCount, issueCount],
+                        backgroundColor: ['rgba(34, 197, 94, 0.6)', 'rgba(239, 68, 68, 0.6)'],
+                        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } }
                 }
             });
         }
+
+        function renderDashboardSummary() {
+            totalProductsSpan.textContent = Object.keys(itemMasterData).length;
+            const totalStock = Object.values(stockBalanceData).reduce((sum, item) => sum + item.quantity, 0);
+            totalStockQuantitySpan.textContent = totalStock;
+            totalReceivesSpan.textContent = transactionsData.filter(t => t.type === 'receive').length;
+            totalIssuesSpan.textContent = transactionsData.filter(t => t.type === 'issue').length;
+        }
+
+        function renderStockBalanceTable(data = Object.values(stockBalanceData)) {
+            stockBalanceTableBody.innerHTML = '';
+            const filteredData = data.filter(item => {
+                const itemName = itemMasterData[item.itemId]?.name || '';
+                return itemName.toLowerCase().includes(stockSearchInput.value.toLowerCase());
+            });
+
+            filteredData.forEach(item => {
+                const masterItem = itemMasterData[item.itemId];
+                const isLowStock = masterItem && item.quantity < masterItem.minStock;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${masterItem ? masterItem.name : 'Unknown'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${masterItem ? masterItem.unit : ''}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${item.quantity}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${masterItem ? masterItem.minStock : ''}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isLowStock ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                            ${isLowStock ? 'สต็อกต่ำ' : 'ปกติ'}
+                        </span>
+                    </td>
+                `;
+                stockBalanceTableBody.appendChild(row);
+            });
+        }
+
+        function renderReceiveTable() {
+            receiveTableBody.innerHTML = '';
+            const receiveHistory = transactionsData.filter(t => t.type === 'receive').sort((a, b) => b.timestamp - a.timestamp);
+            receiveHistory.forEach(t => {
+                const item = itemMasterData[t.itemId];
+                if (item) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${new Date(t.timestamp).toLocaleDateString('th-TH')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${item.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${t.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.po_number || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.iv_number || '-'}</td>
+                    `;
+                    receiveTableBody.appendChild(row);
+                }
+            });
+        }
+
+        function renderIssueTable() {
+            issueTableBody.innerHTML = '';
+            const issueHistory = transactionsData.filter(t => t.type === 'issue').sort((a, b) => b.timestamp - a.timestamp);
+            issueHistory.forEach(t => {
+                const item = itemMasterData[t.itemId];
+                if (item) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${new Date(t.timestamp).toLocaleDateString('th-TH')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${item.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${t.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.iv_number || '-'}</td>
+                    `;
+                    issueTableBody.appendChild(row);
+                }
+            });
+        }
+
+        function renderStockByIVReport(selectedItemId) {
+            stockByIVTableBody.innerHTML = '';
+            if (!selectedItemId) return;
+
+            const transactionsForIV = transactionsData.filter(t => t.itemId === selectedItemId);
+            const stockByIV = {};
+            transactionsForIV.forEach(t => {
+                if (!stockByIV[t.iv_number]) {
+                    stockByIV[t.iv_number] = 0;
+                }
+                if (t.type === 'receive') {
+                    stockByIV[t.iv_number] += t.quantity;
+                } else if (t.type === 'issue') {
+                    stockByIV[t.iv_number] -= t.quantity;
+                }
+            });
+
+            for (const iv in stockByIV) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${iv}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${stockByIV[iv]}</td>
+                `;
+                stockByIVTableBody.appendChild(row);
+            }
+        }
+
+        function renderItemMovementReport(selectedItemId) {
+            itemMovementTableBody.innerHTML = '';
+            if (!selectedItemId) {
+                itemMovementCurrentStockSpan.textContent = '0';
+                return;
+            }
+            itemMovementCurrentStockSpan.textContent = stockBalanceData[selectedItemId]?.quantity || '0';
+
+            const movements = transactionsData.filter(t => t.itemId === selectedItemId).sort((a, b) => b.timestamp - a.timestamp);
+            movements.forEach(t => {
+                const item = itemMasterData[t.itemId];
+                if (item) {
+                    const row = document.createElement('tr');
+                    const po_number = t.po_number || '-';
+                    const iv_number = t.iv_number || '-';
+                    const type_label = t.type === 'receive' ? 'รับเข้า' : 'เบิกจ่าย';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${new Date(t.timestamp).toLocaleDateString('th-TH')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${type_label}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${t.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${po_number}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${iv_number}</td>
+                    `;
+                    itemMovementTableBody.appendChild(row);
+                }
+            });
+        }
+
+        function renderMasterTable() {
+            masterTableBody.innerHTML = '';
+            const masterItems = Object.entries(itemMasterData).sort(([, a], [, b]) => a.name.localeCompare(b.name, 'th'));
+
+            masterItems.forEach(([itemId, item]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${item.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">
+                        <input type="number" value="${item.minStock}" min="0" data-item-id="${itemId}" class="p-1 border border-stone-300 rounded-md w-24 text-right focus:ring-1 focus:ring-purple-500">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button data-item-id="${itemId}" class="delete-btn text-red-600 hover:text-red-900 transition-colors duration-300">ลบ</button>
+                    </td>
+                `;
+                masterTableBody.appendChild(row);
+            });
+        }
+
+        // --- Data Listeners and Handlers ---
+        function setupDataListeners() {
+            if (!db || !userId || !appId) return;
+
+            const basePath = `artifacts/${appId}/users/${userId}`;
+
+            const itemMasterCol = collection(db, `${basePath}/item_master`);
+            onSnapshot(itemMasterCol, (snapshot) => {
+                itemMasterData = {};
+                snapshot.forEach(doc => {
+                    itemMasterData[doc.id] = { ...doc.data(), id: doc.id };
+                });
+                renderMasterTable();
+                populateItemSelects();
+                renderStockBalanceTable();
+                renderDashboardSummary();
+                renderDashboardCharts();
+            });
+
+            const stockBalanceCol = collection(db, `${basePath}/stock_balance`);
+            onSnapshot(stockBalanceCol, (snapshot) => {
+                stockBalanceData = {};
+                snapshot.forEach(doc => {
+                    stockBalanceData[doc.id] = { ...doc.data(), id: doc.id };
+                });
+                renderStockBalanceTable();
+                renderDashboardSummary();
+                renderDashboardCharts();
+                const activeTab = document.querySelector('.tab-button.active').dataset.tab;
+                if (activeTab === 'stockByIV') renderStockByIVReport(stockByIVItemSelect.value);
+                if (activeTab === 'itemMovement') renderItemMovementReport(itemMovementItemSelect.value);
+            });
+
+            const transactionsCol = collection(db, `${basePath}/transactions`);
+            onSnapshot(transactionsCol, (snapshot) => {
+                transactionsData = [];
+                snapshot.forEach(doc => {
+                    transactionsData.push({ ...doc.data(), id: doc.id });
+                });
+                calculateStockByIV();
+                renderDashboardSummary();
+                renderDashboardCharts();
+                renderReceiveTable();
+                renderIssueTable();
+                populateIssueIvSelect();
+                const activeTab = document.querySelector('.tab-button.active').dataset.tab;
+                if (activeTab === 'stockByIV') renderStockByIVReport(stockByIVItemSelect.value);
+                if (activeTab === 'itemMovement') renderItemMovementReport(itemMovementItemSelect.value);
+            });
+        }
+
+        function populateItemSelects() {
+            const selects = [receiveItemSelect, issueItemSelect, stockByIVItemSelect, itemMovementItemSelect];
+            selects.forEach(select => {
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">-- เลือกสินค้า --</option>';
+                const sortedItems = Object.values(itemMasterData).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+                sortedItems.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+                    select.appendChild(option);
+                });
+                select.value = currentVal;
+            });
+            updateUnitFields();
+        }
+
+        function populateIssueIvSelect() {
+            issueIvSelect.innerHTML = '<option value="">-- เลือก IV --</option>';
+            const selectedItemId = issueItemSelect.value;
+
+            if (!selectedItemId || !stockByIVData[selectedItemId]) {
+                issueIvStockSpan.textContent = '0';
+                return;
+            }
+
+            const ivsForSelectedItem = stockByIVData[selectedItemId];
+            const sortedIVs = Object.keys(ivsForSelectedItem).sort();
+
+            sortedIVs.forEach(iv => {
+                const quantity = ivsForSelectedItem[iv];
+                if (quantity > 0) {
+                    const option = document.createElement('option');
+                    option.value = iv;
+                    option.textContent = `${iv} (เหลือ: ${quantity})`;
+                    issueIvSelect.appendChild(option);
+                }
+            });
+            
+            updateIssueIvStockDisplay();
+        }
+
+        function updateIssueIvStockDisplay() {
+            const selectedItemId = issueItemSelect.value;
+            const selectedIv = issueIvSelect.value;
+            if (selectedItemId && selectedIv && stockByIVData[selectedItemId]?.[selectedIv]) {
+                issueIvStockSpan.textContent = stockByIVData[selectedItemId][selectedIv];
+            } else {
+                issueIvStockSpan.textContent = '0';
+            }
+        }
+
+        function updateUnitFields() {
+            const receiveItemId = receiveItemSelect.value;
+            const issueItemId = issueItemSelect.value;
+
+            receiveUnitInput.value = receiveItemId ? (itemMasterData[receiveItemId]?.unit || '') : '';
+            issueUnitInput.value = issueItemId ? (itemMasterData[issueItemId]?.unit || '') : '';
+        }
         
         // --- Event Listeners ---
-        messageCloseBtn.addEventListener('click', hideMessage);
-
-        document.querySelectorAll('[data-tab]').forEach(button => {
+        tabButtons.forEach(button => {
             button.addEventListener('click', () => {
-                // Deactivate all tabs and hide all content
-                document.querySelectorAll('[data-tab]').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                });
-
-                // Activate clicked tab and show content
-                button.classList.add('active');
-                const targetId = button.dataset.tab;
-                document.getElementById(`${targetId}-view`).classList.remove('hidden');
-
-                // Special handling for reports to re-render data
-                if (targetId === 'stockByIV') {
-                    renderStockByIVReport();
-                }
+                switchTab(button.dataset.tab);
             });
         });
 
-        // Add Item Form
-        document.getElementById('add-item-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            showLoading();
+        messageCloseBtn.addEventListener('click', hideMessage);
 
-            const form = e.target;
-            const item_name = form.item_name.value.trim();
-            const item_unit = form.item_unit.value.trim();
-            const min_stock = parseInt(form.min_stock.value);
+        stockSearchInput.addEventListener('input', () => {
+            const searchText = stockSearchInput.value.toLowerCase();
+            const filteredData = Object.values(stockBalanceData).filter(item => {
+                const itemName = itemMasterData[item.itemId]?.name || '';
+                return itemName.toLowerCase().includes(searchText);
+            });
+            renderStockBalanceTable(filteredData);
+        });
 
-            if (!item_name || !item_unit || isNaN(min_stock) || min_stock < 0) {
-                showMessage('กรุณากรอกข้อมูลสินค้าให้ครบถ้วนและถูกต้อง', 'error');
-                hideLoading();
-                return;
-            }
+        sortByNameBtn.addEventListener('click', () => {
+            const sortedData = Object.values(stockBalanceData).sort((a, b) => {
+                const nameA = itemMasterData[a.itemId]?.name || '';
+                const nameB = itemMasterData[b.itemId]?.name || '';
+                return nameA.localeCompare(nameB, 'th');
+            });
+            renderStockBalanceTable(sortedData);
+        });
 
-            try {
-                // Check if item name already exists
-                const itemQuery = query(collection(db, `artifacts/${appId}/public/data/itemMaster`), where('name', '==', item_name));
-                const itemSnapshot = await getDocs(itemQuery);
+        sortByQuantityBtn.addEventListener('click', () => {
+            const sortedData = Object.values(stockBalanceData).sort((a, b) => a.quantity - b.quantity);
+            renderStockBalanceTable(sortedData);
+        });
 
-                if (!itemSnapshot.empty) {
-                    showMessage('ชื่อสินค้านี้มีอยู่แล้ว', 'error');
-                    hideLoading();
-                    return;
+        masterTableBody.addEventListener('change', (e) => {
+            if (e.target.type === 'number' && e.target.dataset.itemId) {
+                const itemId = e.target.dataset.itemId;
+                const newMinStock = parseInt(e.target.value, 10);
+                if (userId && !isNaN(newMinStock) && newMinStock >= 0) {
+                    const itemDocRef = doc(db, `artifacts/${appId}/users/${userId}/item_master`, itemId);
+                    updateDoc(itemDocRef, { minStock: newMinStock }).catch(error => {
+                        console.error('Error updating min stock:', error);
+                        showMessage('ไม่สามารถอัปเดตสต็อกขั้นต่ำได้');
+                    });
                 }
-
-                await addDoc(collection(db, `artifacts/${appId}/public/data/itemMaster`), {
-                    name: item_name,
-                    unit: item_unit,
-                    min_stock: min_stock
-                });
-                showMessage('เพิ่มสินค้าสำเร็จ!');
-                form.reset();
-            } catch (error) {
-                console.error("Error adding new item:", error);
-                showMessage('เกิดข้อผิดพลาดในการเพิ่มสินค้า', 'error');
-            } finally {
-                hideLoading();
             }
         });
 
-        // Delete Item Button
-        document.getElementById('item-master-table').addEventListener('click', async (e) => {
-            if (e.target.closest('.delete-item-btn')) {
-                const itemId = e.target.closest('.delete-item-btn').dataset.itemId;
-                // Replace with custom modal later
-                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้?')) {
-                    showLoading();
-                    try {
-                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/itemMaster`, itemId));
-                        showMessage('ลบสินค้าสำเร็จ!');
-                    } catch (error) {
-                        console.error("Error deleting item:", error);
-                        showMessage('เกิดข้อผิดพลาดในการลบสินค้า', 'error');
-                    } finally {
-                        hideLoading();
-                    }
+        masterTableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-btn')) {
+                const itemId = e.target.dataset.itemId;
+                if (userId && itemId) {
+                    const itemName = itemMasterData[itemId]?.name;
+                    showMessage(`คุณต้องการลบสินค้า ${itemName} หรือไม่? ข้อมูลสต็อกที่เกี่ยวข้องจะถูกลบออกไปด้วย`);
+                    document.getElementById('message-close-btn').onclick = async () => {
+                        hideMessage();
+                        try {
+                            const basePath = `artifacts/${appId}/users/${userId}`;
+                            await deleteDoc(doc(db, `${basePath}/item_master`, itemId));
+                            await deleteDoc(doc(db, `${basePath}/stock_balance`, itemId));
+                            
+                            const q = query(collection(db, `${basePath}/transactions`), where("itemId", "==", itemId));
+                            const snapshot = await getDocs(q);
+                            snapshot.forEach(d => deleteDoc(doc(db, `${basePath}/transactions`, d.id)));
+                        } catch (error) {
+                            console.error('Error deleting item:', error);
+                            showMessage('ไม่สามารถลบสินค้าได้');
+                        }
+                    };
                 }
             }
         });
         
-        // Receive Form
-        document.getElementById('receive-form').addEventListener('submit', async (e) => {
+        masterForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            showLoading();
+            const itemName = masterNameInput.value.trim();
+            const itemUnit = masterUnitInput.value.trim();
+            const minStock = parseInt(masterMinStockInput.value, 10);
             
-            const form = e.target;
-            const itemId = form.item_id.value;
-            const quantity = parseInt(form.quantity.value);
-            const po_number = form.po_number.value.trim();
-            const iv_number = form.iv_number.value.trim();
+            if (!itemName || !itemUnit || isNaN(minStock) || minStock < 0) {
+                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง');
+                return;
+            }
+
+            const isDuplicate = Object.values(itemMasterData).some(item => item.name.toLowerCase() === itemName.toLowerCase());
+            if (isDuplicate) {
+                showMessage(`สินค้าชื่อ "${itemName}" มีอยู่ในระบบแล้ว`);
+                return;
+            }
+
+            if (!userId) {
+                showMessage('ผู้ใช้ยังไม่ได้เข้าสู่ระบบ กรุณารอสักครู่');
+                return;
+            }
             
+            try {
+                const itemMasterCol = collection(db, `artifacts/${appId}/users/${userId}/item_master`);
+                await addDoc(itemMasterCol, {
+                    name: itemName,
+                    unit: itemUnit,
+                    minStock: minStock
+                });
+                showMessage(`เพิ่มสินค้า "${itemName}" สำเร็จ`);
+                masterForm.reset();
+            } catch (error) {
+                console.error('Error adding new item:', error);
+                showMessage('ไม่สามารถเพิ่มสินค้าได้');
+            }
+        });
+
+        receiveItemSelect.addEventListener('change', updateUnitFields);
+        
+        receiveForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const itemId = receiveItemSelect.value;
+            const quantity = parseInt(receiveQuantityInput.value, 10);
+            const po_number = receivePoInput.value.trim();
+            const iv_number = receiveIvInput.value.trim();
+
             if (!itemId || isNaN(quantity) || quantity <= 0 || !iv_number) {
-                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', 'error');
-                hideLoading();
+                showMessage('กรุณากรอกข้อมูลรับเข้าให้ครบถ้วนและถูกต้อง');
                 return;
             }
-            
+
+            if (!userId) {
+                showMessage('ผู้ใช้ยังไม่ได้เข้าสู่ระบบ กรุณารอสักครู่');
+                return;
+            }
+
+            setLoading(true);
             try {
-                await addDoc(collection(db, `artifacts/${appId}/public/data/transactions`), {
-                    itemId,
-                    type: 'receive',
-                    quantity,
-                    po_number,
-                    iv_number,
-                    timestamp: Date.now()
+                const basePath = `artifacts/${appId}/users/${userId}`;
+                await runTransaction(db, async (transaction) => {
+                    const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
+                    const transactionRef = doc(collection(db, `${basePath}/transactions`));
+
+                    const stockDoc = await transaction.get(stockRef);
+                    let newQuantity = quantity;
+                    if (stockDoc.exists()) {
+                        newQuantity = stockDoc.data().quantity + quantity;
+                        transaction.update(stockRef, { quantity: newQuantity });
+                    } else {
+                        transaction.set(stockRef, { itemId, quantity: newQuantity });
+                    }
+                    
+                    transaction.set(transactionRef, {
+                        itemId, type: 'receive', quantity, timestamp: Date.now(), po_number: po_number || null, iv_number
+                    });
                 });
-                showMessage('บันทึกรายการรับเข้าสำเร็จ!');
-                form.reset();
+                showMessage('บันทึกการรับเข้าสินค้าสำเร็จ');
+                receiveForm.reset();
+                updateUnitFields();
             } catch (error) {
-                console.error("Error adding receive transaction:", error);
-                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการรับเข้า', 'error');
+                console.error('Transaction failed: ', error);
+                showMessage(`ไม่สามารถบันทึกการรับเข้าได้: ${error.message}`);
             } finally {
-                hideLoading();
+                setLoading(false);
             }
         });
-        
-        // Issue Form
-        document.getElementById('issue-form').addEventListener('submit', async (e) => {
+
+        receiveCsvUploadInput.addEventListener('change', (e) => {
+            receiveCsvFile = e.target.files[0];
+            processReceiveCsvBtn.disabled = !receiveCsvFile;
+            processReceiveCsvBtn.textContent = receiveCsvFile ? `ประมวลผลไฟล์: ${receiveCsvFile.name}` : 'ส่งประวัติการรับเข้าจากไฟล์ CSV';
+        });
+
+        processReceiveCsvBtn.addEventListener('click', () => {
+            if (!receiveCsvFile || !userId) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const csvText = e.target.result;
+                try {
+                    const newTransactions = csvToArray(csvText);
+                    if (newTransactions.length === 0) {
+                        showMessage('ไฟล์ CSV ไม่มีข้อมูล');
+                        return;
+                    }
+                    setLoading(true);
+                    const basePath = `artifacts/${appId}/users/${userId}`;
+                    const nameToIdMap = Object.values(itemMasterData).reduce((map, item) => ({ ...map, [item.name.toLowerCase()]: item.id }), {});
+                    const batch = writeBatch(db);
+                    let validTransactions = 0;
+
+                    for (const row of newTransactions) {
+                        const { 'ชื่อสินค้า': itemName, 'จำนวน': quantity, 'เลขที่ PO': po_number, 'เลขที่ IV': iv_number } = row;
+                        const itemId = nameToIdMap[itemName?.toLowerCase()];
+
+                        if (itemId && quantity > 0 && iv_number) {
+                            const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
+                            const stockDoc = await getDoc(stockRef);
+                            const newQuantity = (stockDoc.exists() ? stockDoc.data().quantity : 0) + quantity;
+                            
+                            batch.set(stockRef, { itemId, quantity: newQuantity }, { merge: true });
+                            
+                            const transactionRef = doc(collection(db, `${basePath}/transactions`));
+                            batch.set(transactionRef, { itemId, type: 'receive', quantity, timestamp: Date.now(), po_number: po_number || null, iv_number });
+                            validTransactions++;
+                        }
+                    }
+
+                    if (validTransactions > 0) {
+                        await batch.commit();
+                        showMessage(`อัปโหลดรายการรับเข้าจากไฟล์ CSV สำเร็จ ${validTransactions} รายการ`);
+                    } else {
+                        showMessage('ไม่พบรายการที่ถูกต้องในไฟล์ CSV');
+                    }
+                } catch (error) {
+                    console.error('Error uploading receive CSV:', error);
+                    showMessage(`ไม่สามารถอัปโหลดไฟล์ CSV ได้: ${error.message}`);
+                } finally {
+                    setLoading(false);
+                    receiveCsvUploadInput.value = '';
+                    receiveCsvFile = null;
+                    processReceiveCsvBtn.disabled = true;
+                    processReceiveCsvBtn.textContent = 'ส่งประวัติการรับเข้าจากไฟล์ CSV';
+                }
+            };
+            reader.readAsText(receiveCsvFile);
+        });
+
+        issueItemSelect.addEventListener('change', () => {
+            updateUnitFields();
+            populateIssueIvSelect();
+        });
+
+        issueIvSelect.addEventListener('change', updateIssueIvStockDisplay);
+
+        issueForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            showLoading();
-            
-            const form = e.target;
-            const itemId = form.item_id.value;
-            const iv_number = form.iv_number.value;
-            const quantity = parseInt(form.quantity.value);
+            const itemId = issueItemSelect.value;
+            const iv_number = issueIvSelect.value;
+            const quantity = parseInt(issueQuantityInput.value, 10);
             
             if (!itemId || !iv_number || isNaN(quantity) || quantity <= 0) {
-                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', 'error');
-                hideLoading();
+                showMessage('กรุณากรอกข้อมูลจ่ายออกให้ครบถ้วนและถูกต้อง');
+                return;
+            }
+
+            const currentIVStock = stockByIVData[itemId]?.[iv_number] || 0;
+            if (quantity > currentIVStock) {
+                showMessage(`จำนวนที่จ่ายออก (${quantity}) เกินกว่าสต็อกคงเหลือของ IV นี้ (${currentIVStock})`);
                 return;
             }
             
-            const currentStock = ivStockData[itemId]?.[iv_number] || 0;
-            if (quantity > currentStock) {
-                showMessage(`จำนวนที่จ่ายออก (${quantity}) เกินสต็อกคงเหลือ (${currentStock})`, 'error');
-                hideLoading();
-                return;
-            }
-            
+            if (!userId) return;
+
+            setLoading(true);
             try {
-                await addDoc(collection(db, `artifacts/${appId}/public/data/transactions`), {
-                    itemId,
-                    type: 'issue',
-                    quantity,
-                    iv_number,
-                    timestamp: Date.now()
+                const basePath = `artifacts/${appId}/users/${userId}`;
+                await runTransaction(db, async (transaction) => {
+                    const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
+                    const transactionRef = doc(collection(db, `${basePath}/transactions`));
+
+                    const stockDoc = await transaction.get(stockRef);
+                    if (!stockDoc.exists()) throw "ไม่พบสินค้าในสต็อก";
+
+                    const newQuantity = stockDoc.data().quantity - quantity;
+                    if (newQuantity < 0) throw `จำนวนที่จ่ายออก (${quantity}) เกินกว่าสต็อกคงเหลือรวม (${stockDoc.data().quantity})`;
+
+                    transaction.update(stockRef, { quantity: newQuantity });
+                    transaction.set(transactionRef, { itemId, type: 'issue', quantity, timestamp: Date.now(), iv_number });
                 });
-                showMessage('บันทึกรายการจ่ายออกสำเร็จ!');
-                form.reset();
+                showMessage('บันทึกการจ่ายออกสินค้าสำเร็จ');
+                issueForm.reset();
+                updateUnitFields();
             } catch (error) {
-                console.error("Error adding issue transaction:", error);
-                showMessage('เกิดข้อผิดพลาดในการบันทึกรายการจ่ายออก', 'error');
+                console.error('Transaction failed: ', error);
+                showMessage(`ไม่สามารถบันทึกการจ่ายออกได้: ${typeof error === 'string' ? error : error.message}`);
             } finally {
-                hideLoading();
+                setLoading(false);
             }
         });
         
-        // Update unit of measurement for receive form when item is selected
-        document.getElementById('receive-item-id').addEventListener('change', (e) => {
-            const itemId = e.target.value;
-            const item = itemMasterData[itemId];
-            document.querySelector('#receive-form input[name="item_unit"]').value = item ? item.unit : '';
-        });
-        
-        // Update IV dropdown for issue form when item is selected
-        document.getElementById('issue-item-id').addEventListener('change', (e) => {
-            const itemId = e.target.value;
-            const item = itemMasterData[itemId];
-            const ivSelect = document.getElementById('issue-iv-number');
-            ivSelect.innerHTML = '<option value="">-- เลือกเลขที่ IV --</option>';
-            document.querySelector('#issue-form input[name="item_unit"]').value = item ? item.unit : '';
-
-            if (itemId && ivStockData[itemId]) {
-                for (const ivNumber in ivStockData[itemId]) {
-                    const quantity = ivStockData[itemId][ivNumber];
-                    if (quantity > 0) {
-                        const option = document.createElement('option');
-                        option.value = ivNumber;
-                        option.textContent = `${ivNumber} (คงเหลือ: ${quantity} ${item.unit})`;
-                        ivSelect.appendChild(option);
-                    }
-                }
-            }
+        issueCsvUploadInput.addEventListener('change', (e) => {
+            issueCsvFile = e.target.files[0];
+            processIssueCsvBtn.disabled = !issueCsvFile;
+            processIssueCsvBtn.textContent = issueCsvFile ? `ประมวลผลไฟล์: ${issueCsvFile.name}` : 'ส่งประวัติการจ่ายออกจากไฟล์ CSV';
         });
 
-        // Event Listener for min-stock input change
-        document.addEventListener('change', async (e) => {
-            if (e.target.classList.contains('min-stock-input')) {
-                const itemId = e.target.dataset.itemId;
-                const newMinStock = parseInt(e.target.value);
-                
-                if (isNaN(newMinStock) || newMinStock < 0) {
-                    showMessage('สต็อกขั้นต่ำต้องเป็นตัวเลขที่ไม่ติดลบ');
-                    e.target.value = itemMasterData[itemId].min_stock;
-                    return;
-                }
-
+        processIssueCsvBtn.addEventListener('click', () => {
+            if (!issueCsvFile || !userId) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const csvText = e.target.result;
                 try {
-                    const itemDocRef = doc(db, `artifacts/${appId}/public/data/itemMaster`, itemId);
-                    await updateDoc(itemDocRef, { min_stock: newMinStock });
-                    showMessage('อัปเดตสต็อกขั้นต่ำสำเร็จ!');
-                } catch (e) {
-                    console.error("Error updating document:", e);
-                    showMessage('เกิดข้อผิดพลาดในการอัปเดตสต็อกขั้นต่ำ');
+                    const newTransactions = csvToArray(csvText);
+                    if (newTransactions.length === 0) {
+                        showMessage('ไฟล์ CSV ไม่มีข้อมูล');
+                        return;
+                    }
+                    setLoading(true);
+                    const basePath = `artifacts/${appId}/users/${userId}`;
+                    const nameToIdMap = Object.values(itemMasterData).reduce((map, item) => ({ ...map, [item.name.toLowerCase()]: item.id }), {});
+                    const batch = writeBatch(db);
+                    let validTransactions = 0;
+
+                    for (const row of newTransactions) {
+                        const { 'ชื่อสินค้า': itemName, 'จำนวน': quantity, 'เลขที่ IV': iv_number } = row;
+                        const itemId = nameToIdMap[itemName?.toLowerCase()];
+                        const currentStock = stockBalanceData[itemId]?.quantity || 0;
+
+                        if (itemId && quantity > 0 && iv_number) {
+                            if (quantity > currentStock) {
+                                console.error(`Skipping transaction for ${itemName}: insufficient total stock`);
+                                continue;
+                            }
+                            
+                            const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
+                            const newQuantity = currentStock - quantity;
+                            
+                            batch.update(stockRef, { quantity: newQuantity });
+                            const transactionRef = doc(collection(db, `${basePath}/transactions`));
+                            batch.set(transactionRef, { itemId, type: 'issue', quantity, timestamp: Date.now(), iv_number });
+                            validTransactions++;
+                        }
+                    }
+
+                    if (validTransactions > 0) {
+                        await batch.commit();
+                        showMessage(`อัปโหลดรายการจ่ายออกจากไฟล์ CSV สำเร็จ ${validTransactions} รายการ`);
+                    } else {
+                        showMessage('ไม่พบรายการที่ถูกต้องในไฟล์ CSV');
+                    }
+                } catch (error) {
+                    console.error('Error uploading issue CSV:', error);
+                    showMessage(`ไม่สามารถอัปโหลดไฟล์ CSV ได้: ${error.message}`);
+                } finally {
+                    setLoading(false);
+                    issueCsvUploadInput.value = '';
+                    issueCsvFile = null;
+                    processIssueCsvBtn.disabled = true;
+                    processIssueCsvBtn.textContent = 'ส่งประวัติการจ่ายออกจากไฟล์ CSV';
                 }
-            }
+            };
+            reader.readAsText(issueCsvFile);
         });
 
-        // Event Listener for search input on stock view
-        document.getElementById('stock-search').addEventListener('input', renderStockBalanceTable);
+        stockByIVItemSelect.addEventListener('change', (e) => renderStockByIVReport(e.target.value));
+        itemMovementItemSelect.addEventListener('change', (e) => renderItemMovementReport(e.target.value));
 
-        // Event Listeners for table sorting
-        document.getElementById('stock-sort-name').addEventListener('click', () => {
-            currentSortDirection.name = currentSortDirection.name === 'asc' ? 'desc' : 'asc';
-            currentSortDirection.qty = 'none';
-            renderStockBalanceTable();
+        masterCsvExportBtn.addEventListener('click', () => {
+            const masterItems = Object.values(itemMasterData).map(item => ({
+                'ชื่อสินค้า': item.name, 'หน่วยนับ': item.unit, 'สต็อกขั้นต่ำ': item.minStock,
+            }));
+            const csv = arrayToCsv(masterItems);
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "item_master.csv";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
         
-        document.getElementById('stock-sort-qty').addEventListener('click', () => {
-            currentSortDirection.qty = currentSortDirection.qty === 'asc' ? 'desc' : 'asc';
-            currentSortDirection.name = 'none';
-            renderStockBalanceTable();
+        masterCsvUploadInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const csvText = event.target.result;
+                try {
+                    const newItems = csvToArray(csvText);
+                    if (newItems.length === 0) {
+                        showMessage('ไฟล์ CSV ไม่มีข้อมูล');
+                        return;
+                    }
+                    setLoading(true);
+                    
+                    const itemMasterCol = collection(db, `artifacts/${appId}/users/${userId}/item_master`);
+                    const batch = writeBatch(db);
+                    let addedCount = 0;
+                    let skippedCount = 0;
+
+                    const existingNames = Object.values(itemMasterData).map(item => item.name.toLowerCase());
+                    
+                    for (const item of newItems) {
+                        const { 'ชื่อสินค้า': name, 'หน่วยนับ': unit, 'สต็อกขั้นต่ำ': minStock } = item;
+                        if (name && unit && minStock !== undefined) {
+                             if (existingNames.includes(name.toLowerCase())) {
+                                console.log(`Skipping duplicate item from CSV: ${name}`);
+                                skippedCount++;
+                                continue;
+                            }
+                            const docRef = doc(itemMasterCol);
+                            batch.set(docRef, { name, unit, minStock: Number(minStock) });
+                            existingNames.push(name.toLowerCase());
+                            addedCount++;
+                        } else {
+                            skippedCount++;
+                        }
+                    }
+
+                    if(addedCount > 0) await batch.commit();
+                    
+                    let resultMessage = `อัปโหลด CSV สำเร็จ: เพิ่ม ${addedCount} รายการ`;
+                    if (skippedCount > 0) resultMessage += `, ข้าม ${skippedCount} รายการ (ซ้ำ/ข้อมูลไม่ถูกต้อง)`;
+                    showMessage(resultMessage);
+
+                } catch (error) {
+                    console.error('Error uploading CSV:', error);
+                    showMessage(`ไม่สามารถอัปโหลดไฟล์ CSV ได้: ${error.message}`);
+                } finally {
+                    setLoading(false);
+                    e.target.value = '';
+                }
+            };
+            reader.readAsText(file);
         });
-        
-        // Event listener for stock by IV item select
-        document.getElementById('stock-by-iv-item-id').addEventListener('change', renderStockByIVReport);
-        
-        // Event listener for exporting receive history
+
         document.getElementById('receive-csv-export').addEventListener('click', () => {
             const receives = transactionsData.filter(t => t.type === 'receive').map(t => {
                 const item = itemMasterData[t.itemId];
                 return {
-                    'วันที่-เวลา': new Date(t.timestamp).toLocaleString('th-TH', { hour12: false }),
-                    'ชื่อสินค้า': item ? item.name : 'Unknown',
-                    'จำนวน': t.quantity,
-                    'หน่วยนับ': item ? item.unit : '',
-                    'เลขที่ PO': t.po_number || '',
-                    'เลขที่ IV': t.iv_number
+                    'วันที่': new Date(t.timestamp).toLocaleDateString('th-TH'), 'ชื่อสินค้า': item ? item.name : 'Unknown', 'จำนวน': t.quantity, 'หน่วยนับ': item ? item.unit : '', 'เลขที่ PO': t.po_number || '-', 'เลขที่ IV': t.iv_number
                 };
             });
             const csv = arrayToCsv(receives);
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", "receive_history.csv");
-            link.style.visibility = 'hidden';
+            link.href = URL.createObjectURL(blob);
+            link.download = "receive_history.csv";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         });
 
-        // Event listener for exporting issue history
         document.getElementById('issue-csv-export').addEventListener('click', () => {
             const issues = transactionsData.filter(t => t.type === 'issue').map(t => {
                 const item = itemMasterData[t.itemId];
                 return {
-                    'วันที่-เวลา': new Date(t.timestamp).toLocaleString('th-TH', { hour12: false }),
-                    'ชื่อสินค้า': item ? item.name : 'Unknown',
-                    'จำนวน': t.quantity,
-                    'หน่วยนับ': item ? item.unit : '',
-                    'เลขที่ IV': t.iv_number
+                    'วันที่': new Date(t.timestamp).toLocaleDateString('th-TH'), 'ชื่อสินค้า': item ? item.name : 'Unknown', 'จำนวน': t.quantity, 'หน่วยนับ': item ? item.unit : '', 'เลขที่ IV': t.iv_number
                 };
             });
             const csv = arrayToCsv(issues);
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", "issue_history.csv");
-            link.style.visibility = 'hidden';
+            link.href = URL.createObjectURL(blob);
+            link.download = "issue_history.csv";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         });
 
+        // --- Firebase Initialization and Auth ---
+        function initFirebase() {
+            try {
+                const firebaseConfig = {
+                  apiKey: "AIzaSyADPO1Ojk80tt3nX9c3wRD7eIS6fk6kJ2E",
+                  authDomain: "my-stock-dashboard2.firebaseapp.com",
+                  projectId: "my-stock-dashboard2",
+                  storageBucket: "my-stock-dashboard2.firebasestorage.app",
+                  messagingSenderId: "396230150158",
+                  appId: "1:396230150158:web:2a4566917d4043d9ec145f",
+                  measurementId: "G-5VZWQVDWNF"
+                };
+                
+                // Use projectId for database paths
+                appId = firebaseConfig.projectId; 
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
+                
+                if (initialAuthToken) {
+                    signInWithCustomToken(auth, initialAuthToken)
+                        .catch((error) => {
+                            console.error("Error with custom token, signing in anonymously:", error);
+                            signInAnonymously(auth);
+                        });
+                } else {
+                    signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdSpan.textContent = userId;
+                        setLoading(false);
+                        mainContent.classList.remove('hidden');
+                        setupDataListeners();
+                    } else {
+                        userId = null;
+                        userIdSpan.textContent = 'N/A';
+                        setLoading(false);
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase initialization failed:", e);
+                setLoading(false);
+                showMessage("ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาลองใหม่ภายหลัง");
+            }
+        }
+        
+        // Initial setup
+        window.onload = function() {
+            initFirebase();
+            switchTab('dashboard');
+        };
     </script>
 </body>
 </html>
