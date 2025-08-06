@@ -62,7 +62,7 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .message-box {
+        .message-box, .modal {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -74,6 +74,19 @@
             z-index: 10000;
             max-width: 90%;
             text-align: center;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+        }
+        /* New style for admin-only columns */
+        .admin-only-col.hidden {
+            display: none;
         }
     </style>
 </head>
@@ -88,21 +101,79 @@
     <!-- Message Box for alerts -->
     <div id="message-box" class="hidden message-box">
         <div id="message-content" class="text-stone-700 text-lg mb-4"></div>
-        <button id="message-close-btn" class="bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">ตกลง</button>
+        <div class="flex justify-center gap-4">
+            <button id="message-confirm-btn" class="bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300 hidden">ยืนยัน</button>
+            <button id="message-close-btn" class="bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">ตกลง</button>
+        </div>
     </div>
 
-    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <!-- Edit Transaction Modal -->
+    <div id="edit-transaction-modal" class="hidden modal-overlay">
+        <div class="modal w-full max-w-lg">
+            <h2 class="text-2xl font-bold text-stone-700 mb-6">แก้ไขรายการ</h2>
+            <form id="edit-transaction-form" class="space-y-4 text-left">
+                <input type="hidden" id="edit-transaction-id">
+                <input type="hidden" id="edit-transaction-type">
+                <input type="hidden" id="edit-original-item-id">
+                <input type="hidden" id="edit-original-quantity">
+                <input type="hidden" id="edit-original-po">
+                <input type="hidden" id="edit-original-iv">
+
+                <div>
+                    <label for="edit-item-select" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                    <select id="edit-item-select" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300" required></select>
+                </div>
+                <div>
+                    <label for="edit-quantity" class="block text-stone-700 font-semibold mb-2">จำนวน</label>
+                    <input type="number" id="edit-quantity" min="1" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                </div>
+                <div id="edit-po-group" class="hidden">
+                    <label for="edit-po" class="block text-stone-700 font-semibold mb-2">เลขที่ PO (ถ้ามี)</label>
+                    <input type="text" id="edit-po" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                </div>
+                <div>
+                    <label for="edit-iv" class="block text-stone-700 font-semibold mb-2">เลขที่ IV</label>
+                    <input type="text" id="edit-iv" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                </div>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" id="edit-cancel-btn" class="bg-stone-300 text-stone-800 font-semibold py-2 px-6 rounded-lg hover:bg-stone-400 transition-colors duration-300">ยกเลิก</button>
+                    <button type="submit" class="bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+<div id="login-container" class="min-h-screen flex items-center justify-center bg-stone-100">
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+        <h2 class="text-2xl font-bold text-center text-stone-800 mb-6">เข้าสู่ระบบจัดการสต็อก</h2>
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label for="email" class="block text-stone-700 font-semibold mb-2">อีเมล</label>
+                <input type="email" id="login-email" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 transition-colors duration-300">
+            </div>
+            <div>
+                <label for="password" class="block text-stone-700 font-semibold mb-2">รหัสผ่าน</label>
+                <input type="password" id="login-password" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 transition-colors duration-300">
+            </div>
+            <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 rounded-lg hover:bg-purple-700 transition-colors duration-300">เข้าสู่ระบบ</button>
+        </form>
+        <p id="login-error" class="text-red-500 text-center mt-4 h-5"></p>
+    </div>
+</div>
+
+    <div id="app-container" class="container mx-auto p-4 sm:p-6 lg:p-8 hidden">
 
         <!-- Header and User Info -->
         <header class="text-center mb-8">
-            <h1 class="text-3xl sm:text-4xl font-bold text-stone-800">ระบบจัดการสต็อกสินค้า</h1>
-            <p class="text-stone-500 mt-2">แดชบอร์ดสำหรับติดตามและจัดการสินค้าคงคลัง</p>
-            <!-- Show User ID -->
-            <div class="mt-4 p-2 bg-stone-100 rounded-lg shadow-inner">
-                <span class="font-semibold text-stone-700">User ID:</span>
-                <span id="user-id" class="text-sm font-mono text-purple-700">กำลังโหลด...</span>
-            </div>
-        </header>
+    <h1 class="text-3xl sm:text-4xl font-bold text-stone-800">ระบบจัดการสต็อกสินค้า</h1>
+    <p class="text-stone-500 mt-2">แดชบอร์ดสำหรับติดตามและจัดการสินค้าคงคลัง</p>
+    <div class="mt-4 p-2 bg-stone-100 rounded-lg shadow-inner">
+        <span class="font-semibold text-stone-700">ผู้ใช้งาน:</span>
+        <span id="user-email" class="text-sm font-mono text-purple-700">กำลังโหลด...</span>
+        <button id="logout-btn" class="ml-4 bg-red-500 text-white text-xs font-semibold py-1 px-3 rounded-lg hover:bg-red-600 hidden">ออกจากระบบ</button>
+    </div>
+</header>
 
         <!-- Navigation -->
         <nav class="flex flex-wrap justify-center border-b border-stone-300 mb-8">
@@ -112,7 +183,7 @@
             <button data-tab="issue" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">จ่ายออกสินค้า</button>
             <button data-tab="stockByIV" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">รายงานสต็อกแยก IV</button>
             <button data-tab="itemMovement" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">ความเคลื่อนไหวสินค้า</button>
-            <button data-tab="master" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">ข้อมูลสินค้า</button>
+            <button data-tab="master" id="master-nav-button" class="tab-button text-stone-600 py-3 px-6 border-b-2 border-transparent hover:border-purple-400 hover:bg-purple-50 transition-colors duration-300">ข้อมูลสินค้า</button>
         </nav>
 
         <!-- Main Content -->
@@ -247,6 +318,8 @@
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">ประวัติการรับเข้า</h2>
+                    <!-- Search Input for Receive History -->
+                    <input type="text" id="receive-search" placeholder="ค้นหาสินค้า, เลขที่ PO, หรือเลขที่ IV..." class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300 mb-4">
                     <button id="receive-csv-export" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors duration-300 mb-4 flex items-center gap-2">
                         <i class="fas fa-file-csv"></i>
                         ดาวน์โหลด CSV
@@ -261,6 +334,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ PO</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider admin-only-col">จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody id="receive-table-body" class="divide-y divide-stone-200">
@@ -325,6 +399,8 @@
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">ประวัติการจ่ายออก</h2>
+                    <!-- Search Input for Issue History -->
+                    <input type="text" id="issue-search" placeholder="ค้นหาสินค้าหรือเลขที่ IV..." class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300 mb-4">
                     <button id="issue-csv-export" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors duration-300 mb-4 flex items-center gap-2">
                         <i class="fas fa-file-csv"></i>
                         ดาวน์โหลด CSV
@@ -338,6 +414,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จำนวน</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">เลขที่ IV</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider admin-only-col">จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody id="issue-table-body" class="divide-y divide-stone-200">
@@ -357,6 +434,8 @@
                         <label for="stock-by-iv-item" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
                         <select id="stock-by-iv-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
                     </div>
+                    <!-- Search Input for Stock by IV Report -->
+                    <input type="text" id="stock-by-iv-search" placeholder="ค้นหาเลขที่ IV..." class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300 mb-4">
                     <div class="overflow-x-auto">
                         <table class="min-w-full bg-white rounded-lg shadow-sm">
                             <thead class="bg-stone-50">
@@ -383,6 +462,8 @@
                         <select id="item-movement-item" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300"></select>
                     </div>
                     <p class="text-lg font-semibold text-stone-700 mb-4">ยอดคงเหลือปัจจุบัน: <span id="item-movement-current-stock" class="text-purple-600">0</span></p>
+                    <!-- Search Input for Item Movement Report -->
+                    <input type="text" id="item-movement-search" placeholder="ค้นหาประเภท, เลขที่ PO, หรือเลขที่ IV..." class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300 mb-4">
                     <div class="overflow-x-auto">
                         <table class="min-w-full bg-white rounded-lg shadow-sm">
                             <thead class="bg-stone-50">
@@ -408,56 +489,58 @@
                 <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
                     <h2 class="text-2xl font-bold text-stone-700 mb-4">ข้อมูลสินค้า</h2>
                     <p class="text-stone-500 mb-6">ใช้ส่วนนี้เพื่อเพิ่ม, แก้ไข, หรือลบรายการสินค้าหลัก</p>
-                    <form id="master-form" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label for="master-name" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
-                                <input type="text" id="master-name" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                    <div id="master-data-controls"> <!-- Added wrapper for role-based visibility -->
+                        <form id="master-form" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="master-name" class="block text-stone-700 font-semibold mb-2">ชื่อสินค้า</label>
+                                    <input type="text" id="master-name" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                </div>
+                                <div>
+                                    <label for="master-unit" class="block text-stone-700 font-semibold mb-2">หน่วยนับ</label>
+                                    <input type="text" id="master-unit" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                </div>
+                                <div>
+                                    <label for="master-min-stock" class="block text-stone-700 font-semibold mb-2">สต็อกขั้นต่ำ</label>
+                                    <input type="number" id="master-min-stock" min="0" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                                </div>
                             </div>
-                            <div>
-                                <label for="master-unit" class="block text-stone-700 font-semibold mb-2">หน่วยนับ</label>
-                                <input type="text" id="master-unit" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+                            <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">เพิ่มสินค้า</button>
+                        </form>
+
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200 mt-8"> <!-- Moved this div inside master-data-controls -->
+                            <h2 class="text-2xl font-bold text-stone-700 mb-4">จัดการรายการสินค้าหลัก</h2>
+                            <p class="text-stone-500 mb-6">คุณสามารถจัดการรายการสินค้าหลักทั้งหมดได้จากที่นี่</p>
+                            
+                            <!-- CSV Import/Export Controls -->
+                            <div class="flex flex-wrap items-center gap-4 mb-4">
+                                <button id="master-csv-export" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2">
+                                    <i class="fas fa-download"></i>
+                                    ดาวน์โหลด CSV
+                                </button>
+                                <label for="master-csv-upload" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors duration-300 cursor-pointer flex items-center gap-2">
+                                    <i class="fas fa-upload"></i>
+                                    อัปโหลด CSV
+                                </label>
+                                <input type="file" id="master-csv-upload" class="hidden" accept=".csv">
                             </div>
-                            <div>
-                                <label for="master-min-stock" class="block text-stone-700 font-semibold mb-2">สต็อกขั้นต่ำ</label>
-                                <input type="number" id="master-min-stock" min="0" required class="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-300">
+
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead class="bg-stone-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">สต็อกขั้นต่ำ</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="master-table-body" class="divide-y divide-stone-200">
+                                        <!-- Data will be injected here -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <button type="submit" class="w-full bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors duration-300">เพิ่มสินค้า</button>
-                    </form>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-                    <h2 class="text-2xl font-bold text-stone-700 mb-4">จัดการรายการสินค้าหลัก</h2>
-                    <p class="text-stone-500 mb-6">คุณสามารถจัดการรายการสินค้าหลักทั้งหมดได้จากที่นี่</p>
-                    
-                    <!-- CSV Import/Export Controls -->
-                    <div class="flex flex-wrap items-center gap-4 mb-4">
-                        <button id="master-csv-export" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2">
-                            <i class="fas fa-download"></i>
-                            ดาวน์โหลด CSV
-                        </button>
-                        <label for="master-csv-upload" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors duration-300 cursor-pointer flex items-center gap-2">
-                            <i class="fas fa-upload"></i>
-                            อัปโหลด CSV
-                        </label>
-                        <input type="file" id="master-csv-upload" class="hidden" accept=".csv">
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full bg-white rounded-lg shadow-sm">
-                            <thead class="bg-stone-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">ชื่อสินค้า</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">หน่วยนับ</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">สต็อกขั้นต่ำ</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="master-table-body" class="divide-y divide-stone-200">
-                                <!-- Data will be injected here -->
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </section>
@@ -468,11 +551,11 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import {
-            getAuth,
-            signInAnonymously,
-            signInWithCustomToken,
-            onAuthStateChanged
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    		getAuth,
+    		onAuthStateChanged,
+   		signInWithEmailAndPassword,
+    		signOut
+	} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import {
             getFirestore,
             doc,
@@ -495,21 +578,33 @@
         let db;
         let auth;
         let userId;
-        let appId; // <-- Correctly defined global variable
+        let appId; 
+        let currentUserRole = 'user'; // เพิ่มตัวแปรสำหรับเก็บ Role ของผู้ใช้
 
-        let itemMasterData = {}; // Stores item master data by itemId
-        let stockBalanceData = {}; // Stores stock balance data by itemId
-        let transactionsData = []; // Stores all transaction history
-        let stockByIVData = {}; // New: Stores stock by IV number
+        let itemMasterData = {}; 
+        let stockBalanceData = {}; 
+        let transactionsData = []; 
+        let stockByIVData = {}; 
 
         // --- UI Elements ---
-        const loadingOverlay = document.getElementById('loading-overlay');
-        const mainContent = document.getElementById('main-content');
-        const userIdSpan = document.getElementById('user-id');
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const messageBox = document.getElementById('message-box');
-        const messageContent = document.getElementById('message-content');
-        const messageCloseBtn = document.getElementById('message-close-btn');
+        const loginContainer = document.getElementById('login-container');
+	    const appContainer = document.getElementById('app-container');
+	    const loginForm = document.getElementById('login-form');
+	    const loginError = document.getElementById('login-error');
+	    const userEmailSpan = document.getElementById('user-email');
+	    const logoutBtn = document.getElementById('logout-btn');
+        const tabButtons = document.querySelectorAll('.tab-button'); 
+        const messageBox = document.getElementById('message-box'); 
+        const messageContent = document.getElementById('message-content'); 
+        const messageCloseBtn = document.getElementById('message-close-btn'); 
+        const messageConfirmBtn = document.getElementById('message-confirm-btn'); // New confirm button
+        const loadingOverlay = document.getElementById('loading-overlay'); 
+
+        // Elements for Role-Based Access Control
+        const masterNavButton = document.getElementById('master-nav-button');
+        const masterDataControls = document.getElementById('master-data-controls');
+        const adminOnlyCols = document.querySelectorAll('.admin-only-col'); // New: Select all admin-only columns
+
 
         // --- Dashboard Elements ---
         const totalProductsSpan = document.getElementById('total-products');
@@ -538,27 +633,35 @@
         const receiveCsvUploadInput = document.getElementById('receive-csv-upload');
         const processReceiveCsvBtn = document.getElementById('process-receive-csv-btn');
         let receiveCsvFile = null;
+        const receiveSearchInput = document.getElementById('receive-search');
+
 
         // --- Issue View Elements ---
         const issueForm = document.getElementById('issue-form');
         const issueItemSelect = document.getElementById('issue-item');
         const issueUnitInput = document.getElementById('issue-unit');
-        const issueIvSelect = document.getElementById('issue-iv'); // Updated to select
-        const issueIvStockSpan = document.getElementById('issue-iv-stock'); // New element to display stock
+        const issueIvSelect = document.getElementById('issue-iv'); 
+        const issueIvStockSpan = document.getElementById('issue-iv-stock'); 
         const issueQuantityInput = document.getElementById('issue-quantity');
         const issueTableBody = document.getElementById('issue-table-body');
         const issueCsvUploadInput = document.getElementById('issue-csv-upload');
         const processIssueCsvBtn = document.getElementById('process-issue-csv-btn');
         let issueCsvFile = null;
+        const issueSearchInput = document.getElementById('issue-search');
+
 
         // --- Stock by IV Report Elements ---
         const stockByIVItemSelect = document.getElementById('stock-by-iv-item');
         const stockByIVTableBody = document.getElementById('stock-by-iv-table-body');
+        const stockByIVSearchInput = document.getElementById('stock-by-iv-search');
+
 
         // --- Item Movement Report Elements ---
         const itemMovementItemSelect = document.getElementById('item-movement-item');
         const itemMovementCurrentStockSpan = document.getElementById('item-movement-current-stock');
         const itemMovementTableBody = document.getElementById('item-movement-table-body');
+        const itemMovementSearchInput = document.getElementById('item-movement-search');
+
 
         // --- Master Data Elements ---
         const masterForm = document.getElementById('master-form');
@@ -569,14 +672,45 @@
         const masterCsvExportBtn = document.getElementById('master-csv-export');
         const masterCsvUploadInput = document.getElementById('master-csv-upload');
 
+        // --- Edit Transaction Modal Elements ---
+        const editTransactionModal = document.getElementById('edit-transaction-modal');
+        const editTransactionForm = document.getElementById('edit-transaction-form');
+        const editTransactionIdInput = document.getElementById('edit-transaction-id');
+        const editTransactionTypeInput = document.getElementById('edit-transaction-type');
+        const editOriginalItemIdInput = document.getElementById('edit-original-item-id');
+        const editOriginalQuantityInput = document.getElementById('edit-original-quantity');
+        const editOriginalPoInput = document.getElementById('edit-original-po');
+        const editOriginalIvInput = document.getElementById('edit-original-iv');
+        const editItemSelect = document.getElementById('edit-item-select');
+        const editQuantityInput = document.getElementById('edit-quantity');
+        const editPoGroup = document.getElementById('edit-po-group');
+        const editPoInput = document.getElementById('edit-po');
+        const editIvInput = document.getElementById('edit-iv');
+        const editCancelBtn = document.getElementById('edit-cancel-btn');
+
+
         // --- Helper Functions ---
-        function showMessage(message) {
+        function showMessage(message, isConfirm = false, onConfirm = null) {
             messageContent.textContent = message;
             messageBox.classList.remove('hidden');
+            if (isConfirm) {
+                messageConfirmBtn.classList.remove('hidden');
+                messageCloseBtn.textContent = 'ยกเลิก';
+                messageConfirmBtn.onclick = () => {
+                    hideMessage();
+                    if (onConfirm) onConfirm();
+                };
+            } else {
+                messageConfirmBtn.classList.add('hidden');
+                messageCloseBtn.textContent = 'ตกลง';
+            }
+            messageCloseBtn.onclick = hideMessage;
         }
 
         function hideMessage() {
             messageBox.classList.add('hidden');
+            messageConfirmBtn.onclick = null; // Clear handler
+            messageCloseBtn.onclick = null; // Clear handler
         }
 
         function setLoading(isLoading) {
@@ -596,6 +730,16 @@
 
             if (tabName === 'dashboard') {
                 renderDashboardCharts();
+            }
+            // Re-render tables with search filters when switching tabs
+            if (tabName === 'receive') { 
+                renderReceiveTable();
+            } else if (tabName === 'issue') {
+                renderIssueTable();
+            } else if (tabName === 'stockByIV') {
+                renderStockByIVReport(stockByIVItemSelect.value);
+            } else if (tabName === 'itemMovement') {
+                renderItemMovementReport(itemMovementItemSelect.value);
             }
         }
 
@@ -744,8 +888,19 @@
 
         function renderReceiveTable() {
             receiveTableBody.innerHTML = '';
+            const searchTerm = receiveSearchInput.value.toLowerCase(); 
             const receiveHistory = transactionsData.filter(t => t.type === 'receive').sort((a, b) => b.timestamp - a.timestamp);
-            receiveHistory.forEach(t => {
+            
+            const filteredReceiveHistory = receiveHistory.filter(t => {
+                const itemName = itemMasterData[t.itemId]?.name || '';
+                const poNumber = t.po_number || '';
+                const ivNumber = t.iv_number || '';
+                return itemName.toLowerCase().includes(searchTerm) || 
+                       poNumber.toLowerCase().includes(searchTerm) || 
+                       ivNumber.toLowerCase().includes(searchTerm);
+            });
+
+            filteredReceiveHistory.forEach(t => { 
                 const item = itemMasterData[t.itemId];
                 if (item) {
                     const row = document.createElement('tr');
@@ -756,16 +911,29 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.po_number || '-'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.iv_number || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium admin-only-col">
+                            <button data-transaction-id="${t.id}" data-transaction-type="receive" class="edit-btn text-blue-600 hover:text-blue-900 transition-colors duration-300 mr-2">แก้ไข</button>
+                            <button data-transaction-id="${t.id}" data-transaction-type="receive" class="delete-btn text-red-600 hover:text-red-900 transition-colors duration-300">ลบ</button>
+                        </td>
                     `;
                     receiveTableBody.appendChild(row);
                 }
             });
+            applyRolePermissions(); // Re-apply permissions after rendering
         }
 
         function renderIssueTable() {
             issueTableBody.innerHTML = '';
+            const searchTerm = issueSearchInput.value.toLowerCase();
             const issueHistory = transactionsData.filter(t => t.type === 'issue').sort((a, b) => b.timestamp - a.timestamp);
-            issueHistory.forEach(t => {
+            
+            const filteredIssueHistory = issueHistory.filter(t => {
+                const itemName = itemMasterData[t.itemId]?.name || '';
+                const ivNumber = t.iv_number || '';
+                return itemName.toLowerCase().includes(searchTerm) || ivNumber.toLowerCase().includes(searchTerm);
+            });
+
+            filteredIssueHistory.forEach(t => { 
                 const item = itemMasterData[t.itemId];
                 if (item) {
                     const row = document.createElement('tr');
@@ -775,16 +943,22 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${t.quantity}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${item.unit}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500">${t.iv_number || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium admin-only-col">
+                            <button data-transaction-id="${t.id}" data-transaction-type="issue" class="edit-btn text-blue-600 hover:text-blue-900 transition-colors duration-300 mr-2">แก้ไข</button>
+                            <button data-transaction-id="${t.id}" data-transaction-type="issue" class="delete-btn text-red-600 hover:text-red-900 transition-colors duration-300">ลบ</button>
+                        </td>
                     `;
                     issueTableBody.appendChild(row);
                 }
             });
+            applyRolePermissions(); // Re-apply permissions after rendering
         }
 
         function renderStockByIVReport(selectedItemId) {
             stockByIVTableBody.innerHTML = '';
             if (!selectedItemId) return;
 
+            const searchTerm = stockByIVSearchInput.value.toLowerCase(); 
             const transactionsForIV = transactionsData.filter(t => t.itemId === selectedItemId);
             const stockByIV = {};
             transactionsForIV.forEach(t => {
@@ -799,12 +973,14 @@
             });
 
             for (const iv in stockByIV) {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${iv}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${stockByIV[iv]}</td>
-                `;
-                stockByIVTableBody.appendChild(row);
+                if (iv.toLowerCase().includes(searchTerm)) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${iv}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-900">${stockByIV[iv]}</td>
+                    `;
+                    stockByIVTableBody.appendChild(row);
+                }
             }
         }
 
@@ -816,8 +992,19 @@
             }
             itemMovementCurrentStockSpan.textContent = stockBalanceData[selectedItemId]?.quantity || '0';
 
+            const searchTerm = itemMovementSearchInput.value.toLowerCase(); 
             const movements = transactionsData.filter(t => t.itemId === selectedItemId).sort((a, b) => b.timestamp - a.timestamp);
-            movements.forEach(t => {
+            
+            const filteredMovements = movements.filter(t => {
+                const typeLabel = t.type === 'receive' ? 'รับเข้า' : 'เบิกจ่าย';
+                const poNumber = t.po_number || '';
+                const ivNumber = t.iv_number || '';
+                return typeLabel.toLowerCase().includes(searchTerm) || 
+                       poNumber.toLowerCase().includes(searchTerm) || 
+                       ivNumber.toLowerCase().includes(searchTerm);
+            });
+
+            filteredMovements.forEach(t => { 
                 const item = itemMasterData[t.itemId];
                 if (item) {
                     const row = document.createElement('tr');
@@ -859,9 +1046,9 @@
 
         // --- Data Listeners and Handlers ---
         function setupDataListeners() {
-            if (!db || !userId || !appId) return;
+            if (!db || !appId) return; 
 
-            const basePath = `artifacts/${appId}/users/${userId}`;
+            const basePath = `artifacts/${appId}`;
 
             const itemMasterCol = collection(db, `${basePath}/item_master`);
             onSnapshot(itemMasterCol, (snapshot) => {
@@ -899,8 +1086,8 @@
                 calculateStockByIV();
                 renderDashboardSummary();
                 renderDashboardCharts();
-                renderReceiveTable();
-                renderIssueTable();
+                renderReceiveTable(); 
+                renderIssueTable(); 
                 populateIssueIvSelect();
                 const activeTab = document.querySelector('.tab-button.active').dataset.tab;
                 if (activeTab === 'stockByIV') renderStockByIVReport(stockByIVItemSelect.value);
@@ -908,8 +1095,21 @@
             });
         }
 
+        // Function to apply role-based permissions
+        function applyRolePermissions() {
+            if (currentUserRole === 'admin') {
+                masterNavButton.classList.remove('hidden');
+                masterDataControls.classList.remove('hidden');
+                adminOnlyCols.forEach(col => col.classList.remove('hidden'));
+            } else {
+                masterNavButton.classList.add('hidden');
+                masterDataControls.classList.add('hidden');
+                adminOnlyCols.forEach(col => col.classList.add('hidden'));
+            }
+        }
+
         function populateItemSelects() {
-            const selects = [receiveItemSelect, issueItemSelect, stockByIVItemSelect, itemMovementItemSelect];
+            const selects = [receiveItemSelect, issueItemSelect, stockByIVItemSelect, itemMovementItemSelect, editItemSelect];
             selects.forEach(select => {
                 const currentVal = select.value;
                 select.innerHTML = '<option value="">-- เลือกสินค้า --</option>';
@@ -974,38 +1174,68 @@
                 switchTab(button.dataset.tab);
             });
         });
+	    // --- Event Listeners for Login/Logout ---
+	    loginForm.addEventListener('submit', async (e) => { // Make async
+    		e.preventDefault();
+    		setLoading(true);
+    		loginError.textContent = '';
+    		const email = document.getElementById('login-email').value;
+    		const password = document.getElementById('login-password').value;
 
-        messageCloseBtn.addEventListener('click', hideMessage);
+    		signInWithEmailAndPassword(auth, email, password)
+        		.then(async (userCredential) => { // Make inner function async
+                    const user = userCredential.user;
+                    // Fetch user role after successful login
+                    const userDocRef = doc(db, `artifacts/${appId}/users`, user.uid);
+                    const userDocSnap = await getDoc(userDocRef);
 
-        stockSearchInput.addEventListener('input', () => {
-            const searchText = stockSearchInput.value.toLowerCase();
-            const filteredData = Object.values(stockBalanceData).filter(item => {
-                const itemName = itemMasterData[item.itemId]?.name || '';
-                return itemName.toLowerCase().includes(searchText);
+                    if (userDocSnap.exists()) {
+                        currentUserRole = userDocSnap.data().role || 'user';
+                    } else {
+                        // If user document doesn't exist, create it with a default role
+                        // For simplicity, let's make the first user 'admin' if no users exist, otherwise 'user'.
+                        // In a real app, this logic would be more controlled (e.g., admin invites).
+                        const usersCol = collection(db, `artifacts/${appId}/users`);
+                        const existingUsers = await getDocs(usersCol);
+                        if (existingUsers.empty) {
+                            currentUserRole = 'admin'; // First user becomes admin
+                        } else {
+                            currentUserRole = 'user';
+                        }
+                        await setDoc(userDocRef, { email: user.email, role: currentUserRole }, { merge: true });
+                    }
+                    applyRolePermissions(); // Apply permissions immediately after login
+                })
+                .catch((error) => {
+                    loginError.textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                currentUserRole = 'user'; // Reset role on logout
+                applyRolePermissions(); // Apply permissions for unauthenticated state
+            }).catch((error) => {
+                console.error('Logout failed', error);
+                showMessage('ออกจากระบบไม่สำเร็จ');
             });
-            renderStockBalanceTable(filteredData);
-        });
+        })
 
-        sortByNameBtn.addEventListener('click', () => {
-            const sortedData = Object.values(stockBalanceData).sort((a, b) => {
-                const nameA = itemMasterData[a.itemId]?.name || '';
-                const nameB = itemMasterData[b.itemId]?.name || '';
-                return nameA.localeCompare(nameB, 'th');
-            });
-            renderStockBalanceTable(sortedData);
-        });
-
-        sortByQuantityBtn.addEventListener('click', () => {
-            const sortedData = Object.values(stockBalanceData).sort((a, b) => a.quantity - b.quantity);
-            renderStockBalanceTable(sortedData);
-        });
-
-        masterTableBody.addEventListener('change', (e) => {
+        // Event listener for Master Data table (minStock update and delete)
+        masterTableBody.addEventListener('change', async (e) => { // Make async
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
             if (e.target.type === 'number' && e.target.dataset.itemId) {
                 const itemId = e.target.dataset.itemId;
                 const newMinStock = parseInt(e.target.value, 10);
-                if (userId && !isNaN(newMinStock) && newMinStock >= 0) {
-                    const itemDocRef = doc(db, `artifacts/${appId}/users/${userId}/item_master`, itemId);
+                if (appId && !isNaN(newMinStock) && newMinStock >= 0) { 
+                    const basePath = `artifacts/${appId}`; 
+                    const itemDocRef = doc(db, `${basePath}/item_master`, itemId); 
                     updateDoc(itemDocRef, { minStock: newMinStock }).catch(error => {
                         console.error('Error updating min stock:', error);
                         showMessage('ไม่สามารถอัปเดตสต็อกขั้นต่ำได้');
@@ -1014,33 +1244,245 @@
             }
         });
 
-        masterTableBody.addEventListener('click', (e) => {
+        masterTableBody.addEventListener('click', async (e) => { // Make async
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
             if (e.target.classList.contains('delete-btn')) {
                 const itemId = e.target.dataset.itemId;
-                if (userId && itemId) {
+                if (appId && itemId) { 
                     const itemName = itemMasterData[itemId]?.name;
-                    showMessage(`คุณต้องการลบสินค้า ${itemName} หรือไม่? ข้อมูลสต็อกที่เกี่ยวข้องจะถูกลบออกไปด้วย`);
-                    document.getElementById('message-close-btn').onclick = async () => {
-                        hideMessage();
+                    showMessage(`คุณต้องการลบสินค้า ${itemName} หรือไม่? ข้อมูลสต็อกที่เกี่ยวข้องจะถูกลบออกไปด้วย`, true, async () => {
                         try {
-                            const basePath = `artifacts/${appId}/users/${userId}`;
+                            const basePath = `artifacts/${appId}`; 
                             await deleteDoc(doc(db, `${basePath}/item_master`, itemId));
                             await deleteDoc(doc(db, `${basePath}/stock_balance`, itemId));
                             
                             const q = query(collection(db, `${basePath}/transactions`), where("itemId", "==", itemId));
                             const snapshot = await getDocs(q);
-                            snapshot.forEach(d => deleteDoc(doc(db, `${basePath}/transactions`, d.id)));
+                            // Use Promise.all to wait for all deletions to complete
+                            const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, `${basePath}/transactions`, d.id)));
+                            await Promise.all(deletePromises);
+
+                            showMessage('ลบสินค้าและข้อมูลที่เกี่ยวข้องสำเร็จ');
                         } catch (error) {
                             console.error('Error deleting item:', error);
                             showMessage('ไม่สามารถลบสินค้าได้');
                         }
-                    };
+                    });
                 }
             }
         });
         
+        // Event listener for Receive table (edit and delete)
+        receiveTableBody.addEventListener('click', async (e) => {
+            if (currentUserRole !== 'admin') {
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
+            const transactionId = e.target.dataset.transactionId;
+            const transactionType = e.target.dataset.transactionType;
+            if (!transactionId || !transactionType) return;
+
+            const transaction = transactionsData.find(t => t.id === transactionId);
+            if (!transaction) {
+                showMessage('ไม่พบรายการที่ต้องการแก้ไข/ลบ');
+                return;
+            }
+
+            if (e.target.classList.contains('delete-btn')) {
+                showMessage(`คุณต้องการลบรายการรับเข้าของสินค้า "${itemMasterData[transaction.itemId]?.name}" จำนวน ${transaction.quantity} หรือไม่?`, true, async () => {
+                    await deleteTransaction(transaction.id, transaction.type, transaction.itemId, transaction.quantity, transaction.iv_number, transaction.po_number);
+                });
+            } else if (e.target.classList.contains('edit-btn')) {
+                openEditModal(transaction);
+            }
+        });
+
+        // Event listener for Issue table (edit and delete)
+        issueTableBody.addEventListener('click', async (e) => {
+            if (currentUserRole !== 'admin') {
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
+            const transactionId = e.target.dataset.transactionId;
+            const transactionType = e.target.dataset.transactionType;
+            if (!transactionId || !transactionType) return;
+
+            const transaction = transactionsData.find(t => t.id === transactionId);
+            if (!transaction) {
+                showMessage('ไม่พบรายการที่ต้องการแก้ไข/ลบ');
+                return;
+            }
+
+            if (e.target.classList.contains('delete-btn')) {
+                showMessage(`คุณต้องการลบรายการจ่ายออกของสินค้า "${itemMasterData[transaction.itemId]?.name}" จำนวน ${transaction.quantity} หรือไม่?`, true, async () => {
+                    await deleteTransaction(transaction.id, transaction.type, transaction.itemId, transaction.quantity, transaction.iv_number, transaction.po_number);
+                });
+            } else if (e.target.classList.contains('edit-btn')) {
+                openEditModal(transaction);
+            }
+        });
+
+        async function deleteTransaction(transactionId, type, itemId, quantity, iv_number, po_number) {
+            if (!appId || !db) {
+                showMessage('ระบบยังไม่พร้อม กรุณาลองใหม่');
+                return;
+            }
+            setLoading(true);
+            try {
+                const basePath = `artifacts/${appId}`;
+                await runTransaction(db, async (transaction) => {
+                    const transactionRef = doc(db, `${basePath}/transactions`, transactionId);
+                    const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
+
+                    const stockDoc = await transaction.get(stockRef);
+                    let newStockQuantity = stockDoc.exists() ? stockDoc.data().quantity : 0;
+
+                    if (type === 'receive') {
+                        newStockQuantity -= quantity;
+                    } else if (type === 'issue') {
+                        newStockQuantity += quantity;
+                    }
+
+                    if (newStockQuantity < 0) {
+                        throw new Error('ไม่สามารถลบรายการได้เนื่องจากสต็อกจะติดลบ');
+                    }
+
+                    transaction.delete(transactionRef);
+                    transaction.update(stockRef, { quantity: newStockQuantity });
+                });
+                showMessage('ลบรายการสำเร็จ');
+            } catch (error) {
+                console.error('Error deleting transaction:', error);
+                showMessage(`ไม่สามารถลบรายการได้: ${error.message}`);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function openEditModal(transaction) {
+            editTransactionModal.classList.remove('hidden');
+            editTransactionIdInput.value = transaction.id;
+            editTransactionTypeInput.value = transaction.type;
+            editOriginalItemIdInput.value = transaction.itemId;
+            editOriginalQuantityInput.value = transaction.quantity;
+            editOriginalPoInput.value = transaction.po_number || '';
+            editOriginalIvInput.value = transaction.iv_number || '';
+
+            // Populate item select
+            populateItemSelects(); // Ensure latest master data is in dropdown
+            editItemSelect.value = transaction.itemId;
+            editQuantityInput.value = transaction.quantity;
+            editIvInput.value = transaction.iv_number || '';
+
+            if (transaction.type === 'receive') {
+                editPoGroup.classList.remove('hidden');
+                editPoInput.value = transaction.po_number || '';
+            } else {
+                editPoGroup.classList.add('hidden');
+                editPoInput.value = '';
+            }
+        }
+
+        function closeEditModal() {
+            editTransactionModal.classList.add('hidden');
+            editTransactionForm.reset();
+        }
+
+        editCancelBtn.addEventListener('click', closeEditModal);
+
+        editTransactionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') {
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
+
+            const transactionId = editTransactionIdInput.value;
+            const originalType = editTransactionTypeInput.value;
+            const originalItemId = editOriginalItemIdInput.value;
+            const originalQuantity = parseInt(editOriginalQuantityInput.value, 10);
+            const originalPo = editOriginalPoInput.value;
+            const originalIv = editOriginalIvInput.value;
+
+            const newItemId = editItemSelect.value;
+            const newQuantity = parseInt(editQuantityInput.value, 10);
+            const newPo = editPoInput.value.trim();
+            const newIv = editIvInput.value.trim();
+
+            if (!newItemId || isNaN(newQuantity) || newQuantity <= 0 || !newIv) {
+                showMessage('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง');
+                return;
+            }
+
+            if (!appId || !db) {
+                showMessage('ระบบยังไม่พร้อม กรุณาลองใหม่');
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const basePath = `artifacts/${appId}`;
+                await runTransaction(db, async (transaction) => {
+                    const transactionRef = doc(db, `${basePath}/transactions`, transactionId);
+                    
+                    // Adjust old stock balance
+                    const oldStockRef = doc(db, `${basePath}/stock_balance`, originalItemId);
+                    const oldStockDoc = await transaction.get(oldStockRef);
+                    let oldStockQuantity = oldStockDoc.exists() ? oldStockDoc.data().quantity : 0;
+                    
+                    if (originalType === 'receive') {
+                        oldStockQuantity -= originalQuantity;
+                    } else if (originalType === 'issue') {
+                        oldStockQuantity += originalQuantity;
+                    }
+                    if (oldStockQuantity < 0) throw new Error('การปรับสต็อกเดิมทำให้สต็อกติดลบ');
+                    transaction.update(oldStockRef, { quantity: oldStockQuantity });
+
+                    // Apply new stock balance
+                    const newStockRef = doc(db, `${basePath}/stock_balance`, newItemId);
+                    const newStockDoc = await transaction.get(newStockRef);
+                    let newStockQuantity = newStockDoc.exists() ? newStockDoc.data().quantity : 0;
+
+                    if (originalType === 'receive') { // This is a receive transaction being updated
+                        newStockQuantity += newQuantity;
+                    } else if (originalType === 'issue') { // This is an issue transaction being updated
+                        newStockQuantity -= newQuantity;
+                    }
+                    if (newStockQuantity < 0) throw new Error('การปรับสต็อกใหม่ทำให้สต็อกติดลบ');
+                    transaction.set(newStockRef, { itemId: newItemId, quantity: newStockQuantity }, { merge: true }); // Use set with merge in case new item
+
+                    // Update the transaction record
+                    const updatedTransactionData = {
+                        itemId: newItemId,
+                        quantity: newQuantity,
+                        iv_number: newIv,
+                        timestamp: Date.now() // Update timestamp to reflect edit time
+                    };
+                    if (originalType === 'receive') {
+                        updatedTransactionData.po_number = newPo || null;
+                    }
+                    transaction.update(transactionRef, updatedTransactionData);
+                });
+                showMessage('แก้ไขรายการสำเร็จ');
+                closeEditModal();
+            } catch (error) {
+                console.error('Error saving edited transaction:', error);
+                showMessage(`ไม่สามารถบันทึกการแก้ไขได้: ${error.message}`);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+
         masterForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
             const itemName = masterNameInput.value.trim();
             const itemUnit = masterUnitInput.value.trim();
             const minStock = parseInt(masterMinStockInput.value, 10);
@@ -1056,13 +1498,14 @@
                 return;
             }
 
-            if (!userId) {
+            if (!appId) { 
                 showMessage('ผู้ใช้ยังไม่ได้เข้าสู่ระบบ กรุณารอสักครู่');
                 return;
             }
             
             try {
-                const itemMasterCol = collection(db, `artifacts/${appId}/users/${userId}/item_master`);
+                const basePath = `artifacts/${appId}`; 
+                const itemMasterCol = collection(db, `${basePath}/item_master`); 
                 await addDoc(itemMasterCol, {
                     name: itemName,
                     unit: itemUnit,
@@ -1090,14 +1533,14 @@
                 return;
             }
 
-            if (!userId) {
+            if (!appId) { 
                 showMessage('ผู้ใช้ยังไม่ได้เข้าสู่ระบบ กรุณารอสักครู่');
                 return;
             }
 
             setLoading(true);
             try {
-                const basePath = `artifacts/${appId}/users/${userId}`;
+                const basePath = `artifacts/${appId}`; 
                 await runTransaction(db, async (transaction) => {
                     const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
                     const transactionRef = doc(collection(db, `${basePath}/transactions`));
@@ -1132,8 +1575,12 @@
             processReceiveCsvBtn.textContent = receiveCsvFile ? `ประมวลผลไฟล์: ${receiveCsvFile.name}` : 'ส่งประวัติการรับเข้าจากไฟล์ CSV';
         });
 
-        processReceiveCsvBtn.addEventListener('click', () => {
-            if (!receiveCsvFile || !userId) return;
+        processReceiveCsvBtn.addEventListener('click', async () => { // Make async
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
+            if (!receiveCsvFile || !appId) return; 
 
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -1145,7 +1592,7 @@
                         return;
                     }
                     setLoading(true);
-                    const basePath = `artifacts/${appId}/users/${userId}`;
+                    const basePath = `artifacts/${appId}`; 
                     const nameToIdMap = Object.values(itemMasterData).reduce((map, item) => ({ ...map, [item.name.toLowerCase()]: item.id }), {});
                     const batch = writeBatch(db);
                     let validTransactions = 0;
@@ -1187,6 +1634,9 @@
             reader.readAsText(receiveCsvFile);
         });
 
+        // Event listener for Receive search input
+        receiveSearchInput.addEventListener('input', renderReceiveTable);
+
         issueItemSelect.addEventListener('change', () => {
             updateUnitFields();
             populateIssueIvSelect();
@@ -1211,11 +1661,11 @@
                 return;
             }
             
-            if (!userId) return;
+            if (!appId) return; 
 
             setLoading(true);
             try {
-                const basePath = `artifacts/${appId}/users/${userId}`;
+                const basePath = `artifacts/${appId}`; 
                 await runTransaction(db, async (transaction) => {
                     const stockRef = doc(db, `${basePath}/stock_balance`, itemId);
                     const transactionRef = doc(collection(db, `${basePath}/transactions`));
@@ -1246,8 +1696,12 @@
             processIssueCsvBtn.textContent = issueCsvFile ? `ประมวลผลไฟล์: ${issueCsvFile.name}` : 'ส่งประวัติการจ่ายออกจากไฟล์ CSV';
         });
 
-        processIssueCsvBtn.addEventListener('click', () => {
-            if (!issueCsvFile || !userId) return;
+        processIssueCsvBtn.addEventListener('click', async () => { // Make async
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
+            if (!issueCsvFile || !appId) return; 
             
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -1259,7 +1713,7 @@
                         return;
                     }
                     setLoading(true);
-                    const basePath = `artifacts/${appId}/users/${userId}`;
+                    const basePath = `artifacts/${appId}`; 
                     const nameToIdMap = Object.values(itemMasterData).reduce((map, item) => ({ ...map, [item.name.toLowerCase()]: item.id }), {});
                     const batch = writeBatch(db);
                     let validTransactions = 0;
@@ -1305,10 +1759,22 @@
             reader.readAsText(issueCsvFile);
         });
 
+        // Event listener for Issue search input
+        issueSearchInput.addEventListener('input', renderIssueTable);
+
         stockByIVItemSelect.addEventListener('change', (e) => renderStockByIVReport(e.target.value));
+        // Event listener for Stock by IV search input
+        stockByIVSearchInput.addEventListener('input', () => renderStockByIVReport(stockByIVItemSelect.value));
+
         itemMovementItemSelect.addEventListener('change', (e) => renderItemMovementReport(e.target.value));
+        // Event listener for Item Movement search input
+        itemMovementSearchInput.addEventListener('input', () => renderItemMovementReport(itemMovementItemSelect.value));
 
         masterCsvExportBtn.addEventListener('click', () => {
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
             const masterItems = Object.values(itemMasterData).map(item => ({
                 'ชื่อสินค้า': item.name, 'หน่วยนับ': item.unit, 'สต็อกขั้นต่ำ': item.minStock,
             }));
@@ -1322,7 +1788,11 @@
             document.body.removeChild(link);
         });
         
-        masterCsvUploadInput.addEventListener('change', (e) => {
+        masterCsvUploadInput.addEventListener('change', async (e) => { // Make async
+            if (currentUserRole !== 'admin') { // Role check
+                showMessage('คุณไม่มีสิทธิ์ในการดำเนินการนี้');
+                return;
+            }
             const file = e.target.files[0];
             if (!file) return;
 
@@ -1337,7 +1807,8 @@
                     }
                     setLoading(true);
                     
-                    const itemMasterCol = collection(db, `artifacts/${appId}/users/${userId}/item_master`);
+                    const basePath = `artifacts/${appId}`; 
+                    const itemMasterCol = collection(db, `${basePath}/item_master`); 
                     const batch = writeBatch(db);
                     let addedCount = 0;
                     let skippedCount = 0;
@@ -1416,58 +1887,74 @@
         function initFirebase() {
             try {
                 const firebaseConfig = {
-                  apiKey: "AIzaSyADPO1Ojk80tt3nX9c3wRD7eIS6fk6kJ2E",
-                  authDomain: "my-stock-dashboard2.firebaseapp.com",
-                  projectId: "my-stock-dashboard2",
-                  storageBucket: "my-stock-dashboard2.firebasestorage.app",
-                  messagingSenderId: "396230150158",
-                  appId: "1:396230150158:web:2a4566917d4043d9ec145f",
-                  measurementId: "G-5VZWQVDWNF"
+                // ใส่ Config ของคุณที่นี่
+                apiKey: "AIzaSyADPO1Ojk80tt3nX9c3wRD7eIS6fk6kJ2E",
+                authDomain: "my-stock-dashboard2.firebaseapp.com",
+                projectId: "my-stock-dashboard2",
+                storageBucket: "my-stock-dashboard2.appspot.com",
+                messagingSenderId: "396230150158",
+                appId: "1:396230150158:web:2a4566917d4043d9ec145f"
                 };
                 
-                // Use projectId for database paths
                 appId = firebaseConfig.projectId; 
-
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
-                
-                if (initialAuthToken) {
-                    signInWithCustomToken(auth, initialAuthToken)
-                        .catch((error) => {
-                            console.error("Error with custom token, signing in anonymously:", error);
-                            signInAnonymously(auth);
-                        });
-                } else {
-                    signInAnonymously(auth);
-                }
-
-                onAuthStateChanged(auth, (user) => {
+                // จัดการสถานะการล็อกอิน
+                onAuthStateChanged(auth, async (user) => { // Make async
+                    setLoading(false);
                     if (user) {
-                        userId = user.uid;
-                        userIdSpan.textContent = userId;
-                        setLoading(false);
-                        mainContent.classList.remove('hidden');
-                        setupDataListeners();
+                        // ถ้ามี user ล็อกอินอยู่
+                        loginContainer.classList.add('hidden'); 
+                        appContainer.classList.remove('hidden'); 
+                        logoutBtn.classList.remove('hidden'); 
+                        userEmailSpan.textContent = user.email; 
+                        userId = user.uid; 
+                        
+                        // Fetch user role
+                        const userDocRef = doc(db, `artifacts/${appId}/users`, userId);
+                        const userDocSnap = await getDoc(userDocRef);
+
+                        if (userDocSnap.exists()) {
+                            currentUserRole = userDocSnap.data().role || 'user';
+                        } else {
+                            // If user document doesn't exist, create it with a default role
+                            // For simplicity, let's make the first user 'admin' if no users exist, otherwise 'user'.
+                            // In a real app, this logic would be more controlled (e.g., admin invites).
+                            const usersCol = collection(db, `artifacts/${appId}/users`);
+                            const existingUsers = await getDocs(usersCol);
+                            if (existingUsers.empty) {
+                                currentUserRole = 'admin'; // First user becomes admin
+                            } else {
+                                currentUserRole = 'user';
+                            }
+                            await setDoc(userDocRef, { email: user.email, role: currentUserRole }, { merge: true });
+                        }
+
+                        applyRolePermissions(); // Apply permissions based on role
+                        setupDataListeners(); // Start data listeners after role is determined
                     } else {
-                        userId = null;
-                        userIdSpan.textContent = 'N/A';
-                        setLoading(false);
+                        // ถ้าไม่มี user ล็อกอิน
+                        loginContainer.classList.remove('hidden'); 
+                        appContainer.classList.add('hidden'); 
+                        logoutBtn.classList.add('hidden'); 
+                        userEmailSpan.textContent = 'กรุณาเข้าสู่ระบบ';
+                        currentUserRole = 'user'; // Reset role on logout
+                        applyRolePermissions(); // Apply permissions for unauthenticated state
                     }
                 });
+
             } catch (e) {
                 console.error("Firebase initialization failed:", e);
                 setLoading(false);
                 showMessage("ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาลองใหม่ภายหลัง");
             }
         }
-        
+            
         // Initial setup
         window.onload = function() {
             initFirebase();
-            switchTab('dashboard');
         };
     </script>
 </body>
